@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0c0f1d">
+<title>Design Lab — pick a direction</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
+  body { background: #0c0f1d; color: #ece9e2; min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    padding: calc(30px + env(safe-area-inset-top)) 22px 50px; }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -.4px; }
+  .sub { color: #8a8fa3; margin: 8px 0 26px; font-size: 15px; line-height: 1.5; }
+  a.card { display: block; text-decoration: none; color: inherit; background: #151a2e;
+    border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 20px; margin-bottom: 14px;
+    transition: transform .15s; }
+  a.card:active { transform: scale(.98); }
+  .num { font-size: 12px; font-weight: 800; letter-spacing: .18em; color: #f5a623; }
+  .name { font-size: 22px; font-weight: 800; margin: 4px 0 6px; }
+  .feel { color: #9aa0bd; font-size: 14.5px; line-height: 1.5; }
+  .note { color: #5d6284; font-size: 13px; margin-top: 26px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Three ways a day could feel</h1>
+  <div class="sub">Same seven demo tasks in each. Ignore the polish level — feel the <em>flow</em>. Which one would you actually open?</div>
+
+  <a class="card" href="path.html">
+    <div class="num">01</div>
+    <div class="name">The Path</div>
+    <div class="feel">Your day is a trail. Tap a stop to arrive; the lantern lights, the line fills, and your marker walks forward. Finish the day, reach the harbor.</div>
+  </a>
+
+  <a class="card" href="tides.html">
+    <div class="num">02</div>
+    <div class="name">Tides</div>
+    <div class="feel">One thing at a time, huge and calm. "Done" sends a wave through; the next thing rises. The sky behind you moves from dawn to dusk as the day completes.</div>
+  </a>
+
+  <a class="card" href="skylight.html">
+    <div class="num">03</div>
+    <div class="name">Skylight</div>
+    <div class="feel">Every finished thing lights a star and joins the constellation. Fill the sky and your day gets a name. Days collect into a gallery.</div>
+  </a>
+
+  <div class="note">Each one would run on the same plumbing: Todoist as the invisible state (nothing can vanish), voice capture from walks, live on every open. This choice is purely about which world your day should live in.</div>
+</div>
+</body>
+</html>

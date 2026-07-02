@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d1b2e">
+<title>Tides</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
+  html, body { height: 100%; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    color: #f2efe8; overflow: hidden; position: fixed; inset: 0; }
+
+  .sky { position: absolute; inset: 0; transition: background 2.4s ease; z-index: -2; }
+  .sun { position: absolute; left: 50%; width: 120px; height: 120px; border-radius: 50%;
+    transform: translateX(-50%); background: radial-gradient(circle, #ffd98a 0%, #f5a623 55%, rgba(245,166,35,0) 72%);
+    filter: blur(2px); transition: bottom 2.4s ease, opacity 2.4s; z-index: -1; opacity: .9; }
+  .sea { position: absolute; left: 0; right: 0; bottom: 0; height: 34%; z-index: -1;
+    background: linear-gradient(180deg, rgba(13,27,46,.1), rgba(9,16,28,.75));
+    border-top: 1px solid rgba(255,255,255,.16); }
+  .sea::before { content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 1px, transparent 1px 26px); }
+
+  .top { position: absolute; top: calc(16px + env(safe-area-inset-top)); left: 0; right: 0;
+    display: flex; justify-content: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); transition: all .5s; }
+  .dot.done { background: #f5a623; box-shadow: 0 0 6px rgba(245,166,35,.8); }
+  .dot.now { background: #fff; transform: scale(1.3); }
+
+  .deck { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .card { width: min(86vw, 420px); text-align: center; padding: 20px;
+    transition: transform .7s cubic-bezier(.3,.7,.3,1), opacity .7s; }
+  .card.leave { transform: translateY(-46vh) scale(.9); opacity: 0; }
+  .card.enter { transform: translateY(30vh) scale(.94); opacity: 0; }
+  .kicker { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: rgba(255,255,255,.55);
+    font-weight: 700; margin-bottom: 18px; }
+  .kicker.focus { color: #f5c469; }
+  .what { font-size: clamp(30px, 8.4vw, 42px); font-weight: 800; line-height: 1.18; letter-spacing: -.5px;
+    text-wrap: balance; }
+  .breath { color: rgba(255,255,255,.5); font-size: 15px; margin-top: 16px; }
+
+  .acts { position: absolute; bottom: calc(30px + env(safe-area-inset-bottom)); left: 0; right: 0;
+    display: flex; justify-content: center; gap: 14px; }
+  button { border: 0; cursor: pointer; font-family: inherit; }
+  .done-btn { background: rgba(245,166,35,.94); color: #241804; font-size: 18px; font-weight: 800;
+    border-radius: 999px; padding: 16px 44px; box-shadow: 0 8px 30px rgba(245,166,35,.35); }
+  .done-btn:active { transform: scale(.96); }
+  .later-btn { background: rgba(255,255,255,.1); color: rgba(255,255,255,.75); font-size: 15px;
+    font-weight: 600; border-radius: 999px; padding: 16px 22px; backdrop-filter: blur(6px); }
+
+  .wave { position: absolute; left: -10%; width: 120%; bottom: -20%; height: 24%; z-index: 3;
+    border-radius: 45% 55% 0 0 / 100% 100% 0 0;
+    background: linear-gradient(180deg, rgba(122,220,255,.35), rgba(13,27,46,.9));
+    opacity: 0; pointer-events: none; }
+  .wave.swell { animation: swell 1s ease-out; }
+  @keyframes swell { 0% { transform: translateY(0); opacity: 0; }
+    35% { opacity: 1; } 100% { transform: translateY(-86vh) scaleY(2.1); opacity: 0; } }
+
+  .fin { text-align: center; }
+  .fin .big { font-size: 56px; margin-bottom: 10px; }
+  .fin h2 { font-size: 30px; font-weight: 800; }
+  .fin p { color: rgba(255,255,255,.6); margin-top: 8px; font-size: 16px; }
+</style>
+</head>
+<body>
+<div class="sky" id="sky"></div>
+<div class="sun" id="sun"></div>
+<div class="sea"></div>
+<div class="top" id="dots"></div>
+<div class="deck"><div class="card" id="card"></div></div>
+<div class="acts" id="acts">
+  <button class="later-btn" id="later">later</button>
+  <button class="done-btn" id="doneb">Done</button>
+</div>
+<div class="wave" id="wave"></div>
+
+<script>
+const TASKS = [
+  { id: 1, name: "Review the Fable sweep", focus: true, breath: "the one that moves the week" },
+  { id: 2, name: "Soccer camp signup", breath: "two minutes once the physical clears" },
+  { id: 3, name: "Walk — 30 easy minutes", breath: "no pace goal, just out the door" },
+  { id: 4, name: "Draft the HO opener", breath: "hopeful register, story first" },
+  { id: 5, name: "Reply in the Lily group", breath: "she asked about the harbor lights" },
+  { id: 6, name: "Water the porch plants", breath: "" },
+  { id: 7, name: "Read 20 pages", breath: "wind-down, not work" },
+];
+let queue = TASKS.map(t => t.id);
+const doneIds = [];
+// sky phases: dawn -> morning -> noon -> golden -> dusk
+const SKIES = [
+  ["#0d1b2e", "#27364f", "#4b4a66"],
+  ["#12233b", "#3a4d6b", "#8a6d76"],
+  ["#1a3a5c", "#4a6d94", "#d9a06b"],
+  ["#243a63", "#7a5a7d", "#f0a35e"],
+  ["#141530", "#3d2e5e", "#c96f4a"],
+  ["#0b0f24", "#2a2350", "#8e4a63"],
+];
+function skyFor(k) {
+  const idx = Math.min(SKIES.length - 1, Math.floor(k * (SKIES.length - 1)));
+  const [a, b, c] = SKIES[idx];
+  return `linear-gradient(180deg, ${a} 0%, ${b} 55%, ${c} 100%)`;
+}
+function paint() {
+  const k = doneIds.length / TASKS.length;
+  document.getElementById("sky").style.background = skyFor(k);
+  const sun = document.getElementById("sun");
+  sun.style.bottom = (8 + k * 46) + "%";
+  sun.style.opacity = .55 + k * .45;
+  const dots = document.getElementById("dots");
+  dots.innerHTML = TASKS.map(t => {
+    const cls = doneIds.includes(t.id) ? "done" : (queue[0] === t.id ? "now" : "");
+    return `<div class="dot ${cls}"></div>`;
+  }).join("");
+}
+function current() { return TASKS.find(t => t.id === queue[0]); }
+
+function show(entering = false) {
+  const card = document.getElementById("card");
+  const t = current();
+  if (!t) return allDone();
+  card.innerHTML = `
+    <div class="kicker ${t.focus ? "focus" : ""}">${t.focus ? "★ the focus" : "now"}</div>
+    <div class="what">${t.name}</div>
+    ${t.breath ? `<div class="breath">${t.breath}</div>` : ""}`;
+  if (entering) {
+    card.classList.add("enter");
+    requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove("enter")));
+  }
+  paint();
+}
+
+let busy = false;
+document.getElementById("doneb").addEventListener("click", () => {
+  if (busy || !current()) return;
+  busy = true;
+  doneIds.push(queue.shift());
+  const wave = document.getElementById("wave");
+  wave.classList.remove("swell"); void wave.offsetWidth; wave.classList.add("swell");
+  const card = document.getElementById("card");
+  card.classList.add("leave");
+  paint();
+  setTimeout(() => { card.classList.remove("leave"); show(true); busy = false; }, 700);
+});
+document.getElementById("later").addEventListener("click", () => {
+  if (busy || queue.length < 2) return;
+  busy = true;
+  const card = document.getElementById("card");
+  card.classList.add("leave");
+  queue.push(queue.shift());
+  setTimeout(() => { card.classList.remove("leave"); show(true); busy = false; }, 450);
+});
+
+function allDone() {
+  document.getElementById("acts").style.display = "none";
+  document.getElementById("card").innerHTML = `
+    <div class="fin"><div class="big">🌅</div><h2>Day, sailed.</h2>
+    <p>${TASKS.length} things, one tide at a time.</p></div>`;
+  paint();
+}
+show();
+</script>
+</body>
+</html>

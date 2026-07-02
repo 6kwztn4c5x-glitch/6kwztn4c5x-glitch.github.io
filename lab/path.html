@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1026">
+<title>The Path</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
+  html, body { background: linear-gradient(180deg, #0b1026 0%, #141b3d 55%, #2a2350 100%);
+    color: #ece9e2; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    min-height: 100%; }
+  body { padding: calc(18px + env(safe-area-inset-top)) 0 40px; overflow-x: hidden; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 0 10px; }
+  header { padding: 4px 14px 10px; display: flex; justify-content: space-between; align-items: baseline; }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -.3px; }
+  .prog { color: #9aa0bd; font-size: 14px; font-weight: 600; }
+  .stage { position: relative; width: 100%; }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .trail-base { stroke: rgba(255,255,255,.13); stroke-width: 5; fill: none; stroke-linecap: round;
+    stroke-dasharray: 0.1 12; }
+  .trail-lit { stroke: #f5a623; stroke-width: 5; fill: none; stroke-linecap: round;
+    filter: drop-shadow(0 0 6px rgba(245,166,35,.55)); transition: stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1); }
+  .stop circle.ring { fill: #141b3d; stroke: #6d7397; stroke-width: 2.5; transition: all .4s; }
+  .stop.focus circle.ring { stroke: #f5a623; stroke-width: 3.5; }
+  .stop.done circle.ring { fill: #f5a623; stroke: #f5a623; filter: drop-shadow(0 0 8px rgba(245,166,35,.7)); }
+  .stop.next circle.ring { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { stroke: #f5a623; } 50% { stroke: #6d7397; } }
+  .stop text.check { font-size: 13px; font-weight: 800; fill: #201503; text-anchor: middle; dominant-baseline: central; opacity: 0; }
+  .stop.done text.check { opacity: 1; }
+  .label { font-size: 13.5px; font-weight: 600; fill: #d9d6cf; }
+  .label.done { fill: #7d829e; text-decoration: line-through; }
+  .label.focuslbl { font-size: 15px; font-weight: 800; fill: #f5c469; }
+  .traveler { filter: drop-shadow(0 0 7px rgba(122,220,255,.8)); }
+  .harbor { font-size: 26px; text-anchor: middle; }
+  .fin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(11,16,38,.85); backdrop-filter: blur(8px); z-index: 5; text-align: center; }
+  .fin.show { display: flex; }
+  .fin .card { padding: 40px; }
+  .fin .big { font-size: 54px; }
+  .fin h2 { font-size: 26px; margin: 12px 0 6px; }
+  .fin p { color: #9aa0bd; }
+  .confetti { position: fixed; top: -10px; font-size: 18px; z-index: 6; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2; } }
+  .hint { text-align: center; color: #7d829e; font-size: 13px; padding: 8px 0 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>The Path</h1><div class="prog" id="prog"></div></header>
+  <div class="hint">tap a stop to arrive there</div>
+  <div class="stage"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+</div>
+<div class="fin" id="fin"><div class="card">
+  <div class="big">⛵️</div><h2>Day walked.</h2><p id="finline"></p>
+</div></div>
+
+<script>
+const TASKS = [
+  { id: 1, name: "Review the Fable sweep", focus: true },
+  { id: 2, name: "Soccer camp signup" },
+  { id: 3, name: "Walk — 30 easy minutes" },
+  { id: 4, name: "Draft the HO opener" },
+  { id: 5, name: "Reply in the Lily group" },
+  { id: 6, name: "Water the porch plants" },
+  { id: 7, name: "Read 20 pages" },
+];
+const done = new Set();
+
+const W = 480, STEP = 132, PAD_TOP = 40, PAD_BOT = 120;
+const H = PAD_TOP + STEP * TASKS.length + PAD_BOT;
+const xs = i => (i % 2 === 0 ? 130 : 350);
+const pts = TASKS.map((t, i) => ({ x: xs(i), y: PAD_TOP + STEP * (i + .5) }));
+const harbor = { x: xs(TASKS.length % 2 === 0 ? 0 : 1) === 130 ? 240 : 240, y: H - 60 };
+
+function pathD() {
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  const all = [...pts, harbor];
+  for (let i = 1; i < all.length; i++) {
+    const a = all[i-1], b = all[i];
+    const my = (a.y + b.y) / 2;
+    d += ` C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y}`;
+  }
+  return d;
+}
+
+const svg = document.getElementById("svg");
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+svg.innerHTML = `
+  <path class="trail-base" d="${pathD()}"/>
+  <path class="trail-lit" id="lit" d="${pathD()}"/>
+  <g id="stops"></g>
+  <text class="harbor" x="${harbor.x}" y="${harbor.y + 9}">🏝</text>
+  <g class="traveler" id="traveler"><circle r="9" fill="#7adcff"/><circle r="4" fill="#eafaff"/></g>
+`;
+
+const lit = document.getElementById("lit");
+const L = lit.getTotalLength();
+lit.style.strokeDasharray = L;
+lit.style.strokeDashoffset = L;
+
+const basePath = svg.querySelector(".trail-base");
+function lenAt(i) {
+  // fraction of total length at stop i (approximate by y progression along curve)
+  const total = TASKS.length;
+  return L * ((i + 1) / (total + 1));
+}
+
+const stopsG = document.getElementById("stops");
+TASKS.forEach((t, i) => {
+  const p = pts[i];
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("class", "stop" + (t.focus ? " focus" : ""));
+  g.setAttribute("id", "stop-" + t.id);
+  const r = t.focus ? 17 : 13;
+  const side = p.x < W / 2 ? 1 : -1;
+  const lx = p.x + side * (r + 12);
+  const anchor = side === 1 ? "start" : "end";
+  g.innerHTML = `
+    <circle class="ring" cx="${p.x}" cy="${p.y}" r="${r}"/>
+    <text class="check" x="${p.x}" y="${p.y}">✓</text>
+    <text class="label ${t.focus ? "focuslbl" : ""}" x="${lx}" y="${p.y + 5}" text-anchor="${anchor}">${t.name}</text>
+  `;
+  g.addEventListener("click", () => arrive(t.id));
+  stopsG.appendChild(g);
+});
+
+const traveler = document.getElementById("traveler");
+let travelerLen = 0;
+function placeTraveler(len) {
+  const p = lit.getPointAtLength(Math.min(len, L - 1));
+  traveler.setAttribute("transform", `translate(${p.x}, ${p.y})`);
+}
+placeTraveler(0);
+
+function walkTo(targetLen) {
+  const from = travelerLen, dist = targetLen - from, dur = 1000, t0 = performance.now();
+  function step(now) {
+    const k = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    placeTraveler(from + dist * e);
+    if (k < 1) requestAnimationFrame(step);
+    else travelerLen = targetLen;
+  }
+  requestAnimationFrame(step);
+}
+
+function updateNextPulse() {
+  TASKS.forEach((t, i) => {
+    const el = document.getElementById("stop-" + t.id);
+    el.classList.remove("next");
+  });
+  const next = TASKS.find(t => !done.has(t.id));
+  if (next) document.getElementById("stop-" + next.id).classList.add("next");
+}
+updateNextPulse();
+updateProg();
+
+function arrive(id) {
+  if (done.has(id)) return;
+  done.add(id);
+  const i = TASKS.findIndex(t => t.id === id);
+  const el = document.getElementById("stop-" + id);
+  el.classList.add("done");
+  el.querySelector(".label").classList.add("done");
+  const frontier = lenAt(Math.max(...[...done].map(d => TASKS.findIndex(t => t.id === d))));
+  lit.style.strokeDashoffset = L - frontier;
+  walkTo(frontier);
+  updateNextPulse();
+  updateProg();
+  if (done.size === TASKS.length) setTimeout(finish, 1200);
+}
+
+function updateProg() {
+  document.getElementById("prog").textContent = `${done.size} of ${TASKS.length} stops`;
+}
+
+function finish() {
+  lit.style.strokeDashoffset = 0;
+  walkTo(L - 1);
+  setTimeout(() => {
+    document.getElementById("finline").textContent = `${TASKS.length} stops. Every lantern lit.`;
+    document.getElementById("fin").classList.add("show");
+    for (let i = 0; i < 36; i++) {
+      const c = document.createElement("div");
+      c.className = "confetti";
+      c.textContent = ["✨","🎉","⭐️","🔸"][i % 4];
+      c.style.left = Math.random() * 100 + "vw";
+      c.style.animationDuration = 2.2 + Math.random() * 2 + "s";
+      c.style.animationDelay = Math.random() * .8 + "s";
+      document.body.appendChild(c);
+    }
+  }, 900);
+}
+document.getElementById("fin").addEventListener("click", () => document.getElementById("fin").classList.remove("show"));
+</script>
+</body>
+</html>
