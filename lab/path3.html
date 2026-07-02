@@ -11,7 +11,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
   body { padding: calc(14px + env(safe-area-inset-top)) 0 90px; overflow-x: hidden; }
   .wrap { max-width: 480px; margin: 0 auto; position: relative; }
-  header { padding: 6px 18px 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  header { padding: 6px 46px 6px 18px; display: flex; justify-content: space-between; align-items: baseline; }
   h1 { font-size: 24px; font-weight: 800; letter-spacing: -.3px; }
   .prog { color: #9aa0bd; font-size: 14px; font-weight: 600; }
   .chip { margin: 0 18px 4px; display: inline-block; background: rgba(245,166,35,.12);
@@ -165,14 +165,14 @@ function layout() {
   let y = 120, ys = [];
   for (let i = 0; i < n; i++) { y += SPAT[i % SPAT.length]; ys.push(y); }
   const harbor = { x: 252, y: y + 170 };
-  const H = harbor.y + 96;
+  const H = harbor.y + 64;
   const pts = act.map((t, i) => ({ x: XPAT[i % XPAT.length], y: ys[i] }));
   geo = { act, n, ys, harbor, H, pts };
 }
 
 function trailD() {
   const { pts, harbor } = geo;
-  const start = { x: W / 2, y: 54 };
+  const start = { x: pts[0].x, y: 84 };
   let d = `M ${start.x} ${start.y}`;
   const all = [start, ...pts, harbor];
   for (let i = 1; i < all.length; i++) {
@@ -193,13 +193,16 @@ function glyphFor(t) {
   if (/sign.?up|pay|buy|order|renew|schedule/.test(n)) return flagpost();
   return lantern();
 }
-function lighthouse() { return `<g transform="translate(0 2)">
-  <path d="M-7 14 L-4 -12 L4 -12 L7 14 Z" fill="#2a3158" stroke="#3c4470" stroke-width="1"/>
-  <rect x="-7" y="-1" width="14" height="4" fill="#f5a623" opacity=".85"/>
-  <rect x="-5" y="-17" width="10" height="6" rx="1.5" fill="#1d2344"/>
-  <circle cx="0" cy="-14" r="3.2" fill="#ffd98a"><animate attributeName="opacity" values="1;.45;1" dur="2.6s" repeatCount="indefinite"/></circle>
-  <path class="beam" d="M2 -14 L40 -22 L40 -6 Z" fill="#ffd98a"/>
-  <path d="M-9 14 H9" stroke="#3c4470" stroke-width="2" stroke-linecap="round"/></g>`; }
+function lighthouse() { return `<g transform="translate(0 4)">
+  <path d="M-8 15 L-5 -13 L5 -13 L8 15 Z" fill="#2e3663" stroke="#4a5288" stroke-width="1.2"/>
+  <rect x="-7.4" y="-2" width="14.8" height="4.6" fill="#f5a623" opacity=".9"/>
+  <rect x="-6.6" y="6" width="13.2" height="4.2" fill="#f5a623" opacity=".55"/>
+  <rect x="-5.6" y="-19" width="11.2" height="7" rx="1.8" fill="#1d2344" stroke="#4a5288" stroke-width=".8"/>
+  <circle cx="0" cy="-15.5" r="4" fill="#ffd98a"><animate attributeName="opacity" values="1;.5;1" dur="2.6s" repeatCount="indefinite"/></circle>
+  <circle cx="0" cy="-15.5" r="8" fill="#ffd98a" opacity=".18"><animate attributeName="r" values="8;12;8" dur="2.6s" repeatCount="indefinite"/></circle>
+  <path class="beam" d="M3 -15.5 L52 -26 L52 -5 Z" fill="#ffd98a"/>
+  <path d="M-4 -19 L0 -23 L4 -19" fill="none" stroke="#4a5288" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M-10 15 H10" stroke="#4a5288" stroke-width="2.2" stroke-linecap="round"/></g>`; }
 function lantern() { return `<g transform="translate(0 2)">
   <path d="M-1 -16 H1 V-9 H-1 Z" fill="#4a4160"/><path d="M-6 -16 H6" stroke="#4a4160" stroke-width="2" stroke-linecap="round"/>
   <rect x="-5" y="-9" width="10" height="13" rx="2.5" fill="#241f3e" stroke="#4a4160"/>
@@ -233,40 +236,70 @@ function anchorArt() { return `<g>
 
 /* ============ scenery ============ */
 function scenery() {
-  const { ys, harbor, H, n } = geo;
+  const { ys, harbor, H, n, pts } = geo;
   const yAt = f => 120 + (harbor.y - 200) * f;
   const hill = (f, amp, fill) => {
     const base = yAt(f);
-    return `<path d="M0 ${base} Q 120 ${base - amp} 250 ${base + amp * .3} T 480 ${base - amp * .5} V ${H} H 0 Z" fill="${fill}"/>`;
+    return `<path d="M0 ${base} Q 120 ${base - amp} 250 ${base + amp * .3} T 480 ${base - amp * .5} V ${H} H 0 Z" fill="${fill}"/>
+      <rect x="0" y="${base - amp - 6}" width="${W}" height="46" fill="url(#fogg)" opacity=".5"/>`;
   };
   const tree = (x, ty, s, hue) => `<g transform="translate(${x} ${ty}) scale(${s})">
-    <rect x="-1.6" y="5" width="3.2" height="9" rx="1.6" fill="#2b2347"/>
-    <path d="M0 -16 C7 -9 10 -2 8 3 C5 7 -5 7 -8 3 C-10 -2 -7 -9 0 -16 Z" fill="${hue}"/></g>`;
+    <rect x="-1.8" y="6" width="3.6" height="10" rx="1.8" fill="#241d40"/>
+    <path d="M0 -20 C4 -14 7 -9 7 -3 C7 2 4 5 0 5 C-4 5 -7 2 -7 -3 C-7 -9 -4 -14 0 -20 Z" fill="${hue}"/>
+    <path d="M0 -20 C2.5 -14 4 -9 4 -3 C4 1 2 4 0 5 Z" fill="rgba(255,255,255,.05)"/></g>`;
   let trees = "";
-  const hues = ["#22355f", "#273f6e", "#1f3057"];
-  for (let i = 0; i < Math.min(n * 2 + 4, 14); i++) {
-    const f = (i + 1) / (Math.min(n * 2 + 4, 14) + 1);
-    const x = (i % 2 === 0) ? 30 + (i * 37) % 90 : 390 + (i * 29) % 70;
-    trees += tree(x, yAt(f) + 46, .7 + ((i * 7) % 10) / 14, hues[i % 3]);
+  const hues = ["#2b4270", "#334d7e", "#253a66", "#3a5688"];
+  const spots = [];
+  for (let i = 0; i < Math.min(n * 3 + 6, 20); i++) {
+    const f = (i + 1) / (Math.min(n * 3 + 6, 20) + 1);
+    const left = i % 2 === 0;
+    const bx = left ? 26 + (i * 41) % 84 : 380 + (i * 31) % 76;
+    const s = .9 + ((i * 7) % 12) / 10;
+    spots.push([bx, yAt(f) + 44, s, hues[i % 4]]);
+    if (i % 3 === 0) spots.push([bx + (left ? 24 : -22), yAt(f) + 52, s * .62, hues[(i + 2) % 4]]);
   }
+  spots.sort((a, b) => a[1] - b[1]).forEach(([x, ty, s, hue]) => trees += tree(x, ty, s, hue));
   const cloud = (cy, dur, delay, s) => `<g class="cloud" style="animation-duration:${dur}s; animation-delay:${delay}s" transform="translate(0 ${cy}) scale(${s})">
     <ellipse cx="0" cy="0" rx="30" ry="9" fill="#252e57"/><ellipse cx="22" cy="-6" rx="19" ry="7" fill="#252e57"/></g>`;
-  const stars = Array.from({ length: 26 }, (_, i) =>
-    `<circle cx="${(i * 97) % 470 + 5}" cy="${(i * 53) % 90 + 6}" r="${.6 + (i % 3) * .5}" fill="#cdd3f2" opacity="${.12 + (i % 4) * .08}"/>`).join("");
-  const glints = Array.from({ length: 6 }, (_, i) =>
-    `<rect class="glint" x="${60 + i * 68}" y="${harbor.y - 44 + (i % 3) * 26}" width="26" height="2.4" rx="1.2" fill="#7adcff" style="animation-delay:${i * .55}s"/>`).join("");
-  const shore = `<path d="M0 ${harbor.y - 66} Q 120 ${harbor.y - 92} 260 ${harbor.y - 60} T 480 ${harbor.y - 74} V ${H} H 0 Z" fill="#0d1330"/>`;
-  const flies = [[210, harbor.y - 130], [150, harbor.y - 90], [300, harbor.y - 110]].map(([x, fy], i) =>
+  const stars = Array.from({ length: 30 }, (_, i) =>
+    `<circle cx="${(i * 97) % 470 + 5}" cy="${(i * 53) % 96 + 6}" r="${.6 + (i % 3) * .5}" fill="#cdd3f2" opacity="${.12 + (i % 4) * .08}"/>`).join("");
+  // home: where the day starts — a porch under the first stretch of trail
+  const hx = pts[0].x, home = `<g transform="translate(${hx} 62)">
+    <path d="M-13 6 L0 -6 L13 6 Z" fill="#2e2a52"/>
+    <rect x="-10" y="6" width="20" height="12" rx="1.5" fill="#241f3e"/>
+    <rect x="-3.4" y="9" width="6.8" height="9" rx="1" fill="#ffbe55" opacity=".9">
+      <animate attributeName="opacity" values=".9;.65;.9" dur="3.2s" repeatCount="indefinite"/></rect>
+    <text x="20" y="14" font-size="11" font-style="italic" fill="#6d7397">home</text></g>`;
+  // sea: layered water with defined shoreline
+  const seaTop = harbor.y - 72;
+  const sea = `
+    <path d="M0 ${seaTop} Q 120 ${seaTop - 26} 260 ${seaTop + 6} T 480 ${seaTop - 8} V ${H} H 0 Z" fill="#101a3e"/>
+    <rect x="0" y="${harbor.y - 20}" width="${W}" height="${H - harbor.y + 20}" fill="#14204a"/>
+    <rect x="0" y="${harbor.y - 22}" width="${W}" height="3" fill="#1e2f5e"/>`;
+  const glints = Array.from({ length: 8 }, (_, i) =>
+    `<rect class="glint" x="${40 + i * 56}" y="${harbor.y - 8 + (i % 3) * 16}" width="${20 + (i % 3) * 9}" height="2.4" rx="1.2" fill="#7adcff" style="animation-delay:${i * .55}s"/>`).join("");
+  const flies = [[210, harbor.y - 130], [150, harbor.y - 96], [300, harbor.y - 112]].map(([x, fy], i) =>
     `<circle class="fly" cx="${x}" cy="${fy}" r="2" fill="#ffe9a3" style="animation-delay:${i * 1.3}s"/>`).join("");
+  // harbor: dock + beacon + moored boat + lamplight on the water
   const dock = `<g transform="translate(${harbor.x} ${harbor.y})">
-    <rect x="-46" y="10" width="92" height="6" rx="3" fill="#2b2347"/>
-    <rect x="-40" y="16" width="5" height="14" fill="#241f3e"/><rect x="35" y="16" width="5" height="14" fill="#241f3e"/>
-    <path d="M-14 6 C-14 -2 14 -2 14 6 L10 10 H-10 Z" fill="#2a3158" stroke="#3c4470"/>
-    <path d="M0 -2 V-16 M0 -16 L11 -7 H0" stroke="#d9d6cf" stroke-width="1.6" fill="rgba(217,214,207,.14)"/></g>`;
+    <rect x="${-58}" y="8" width="116" height="7" rx="3.5" fill="#312a52"/>
+    ${[-50,-30,-10,10,30,44].map(px => `<rect x="${px}" y="15" width="5" height="15" fill="#241f3e"/>`).join("")}
+    <g transform="translate(44 -8)">
+      <rect x="-1.6" y="-14" width="3.2" height="22" fill="#3a3054"/>
+      <circle cx="0" cy="-17" r="4.4" fill="#ffbe55"><animate attributeName="opacity" values="1;.6;1" dur="2.1s" repeatCount="indefinite"/></circle>
+      <circle cx="0" cy="-17" r="9" fill="#ffbe55" opacity=".16"/>
+    </g>
+    <rect x="36" y="18" width="16" height="52" fill="url(#lampg)" opacity=".5"/>
+    <g transform="translate(-26 2)">
+      <path d="M-16 2 C-14 8 14 8 16 2 L12 -2 H-12 Z" fill="#2e3663" stroke="#4a5288" stroke-width="1"/>
+      <rect x="-1" y="-20" width="2" height="18" fill="#4a5288"/>
+      <path d="M1 -19 C8 -15 10 -8 8 -3 L1 -3 Z" fill="rgba(217,214,207,.2)" stroke="#8f95b8" stroke-width=".8"/>
+    </g></g>`;
+  const bottomFade = `<rect x="0" y="${H - 34}" width="${W}" height="34" fill="url(#pageg)"/>`;
   return `<rect width="${W}" height="${H}" fill="url(#skyg)"/>${stars}
     ${cloud(64, 75, 0, 1)}${cloud(yAt(.3), 100, -40, .8)}${cloud(yAt(.62), 115, -70, 1.15)}
     ${hill(.06, 60, "#111737")}${hill(.3, 76, "#151c40")}${hill(.55, 64, "#191f48")}${hill(.78, 70, "#1e234e")}
-    ${trees}${shore}${glints}${flies}${dock}`;
+    ${trees}${sea}${glints}${flies}${home}${dock}${bottomFade}`;
 }
 
 /* ============ render ============ */
@@ -304,10 +337,21 @@ function render(fade = false) {
         <text class="docklbl" x="${lx}" y="${by + 13}" text-anchor="${anchor}">${esc(t.blockedWhy)}</text></g>`;
     });
     scene.innerHTML = `<svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">
-      <defs><linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#0a0e22"/><stop offset=".4" stop-color="#131a3d"/>
-        <stop offset=".75" stop-color="#241f4e"/><stop offset="1" stop-color="#322257"/>
-      </linearGradient></defs>
+      <defs>
+        <linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0a0e22"/><stop offset=".4" stop-color="#131a3d"/>
+          <stop offset=".75" stop-color="#241f4e"/><stop offset="1" stop-color="#322257"/>
+        </linearGradient>
+        <linearGradient id="fogg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#8f95b8" stop-opacity=".14"/><stop offset="1" stop-color="#8f95b8" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="lampg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffbe55" stop-opacity=".5"/><stop offset="1" stop-color="#ffbe55" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="pageg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0a0e22" stop-opacity="0"/><stop offset="1" stop-color="#0a0e22" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
       ${scenery()}
       <path class="trail-base" d="${trailD()}"/>
       <path class="trail-lit" id="lit" d="${trailD()}"/>
