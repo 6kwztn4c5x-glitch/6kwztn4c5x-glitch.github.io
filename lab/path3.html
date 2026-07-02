@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e22">
+<title>The Path</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
+  html, body { background: #0a0e22; color: #ece9e2;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+  body { padding: calc(14px + env(safe-area-inset-top)) 0 90px; overflow-x: hidden; }
+  .wrap { max-width: 480px; margin: 0 auto; position: relative; }
+  header { padding: 6px 18px 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  h1 { font-size: 24px; font-weight: 800; letter-spacing: -.3px; }
+  .prog { color: #9aa0bd; font-size: 14px; font-weight: 600; }
+  .chip { margin: 0 18px 4px; display: inline-block; background: rgba(245,166,35,.12);
+    border: 1px solid rgba(245,166,35,.4); color: #f5c469; font-size: 12.5px; font-weight: 700;
+    border-radius: 999px; padding: 5px 12px; }
+  .gear { position: absolute; top: 8px; right: 14px; background: none; border: 0; color: #6d7397;
+    font-size: 19px; cursor: pointer; z-index: 2; }
+  #scene { transition: opacity .35s; }
+  #scene.fading { opacity: 0; }
+  svg { width: 100%; height: auto; display: block; }
+
+  .trail-base { stroke: rgba(255,241,214,.2); stroke-width: 4.5; fill: none; stroke-linecap: round; stroke-dasharray: .1 11; }
+  .trail-lit { stroke: #f5a623; stroke-width: 4.5; fill: none; stroke-linecap: round;
+    filter: drop-shadow(0 0 6px rgba(245,166,35,.55)); transition: stroke-dashoffset 1.1s cubic-bezier(.4,0,.2,1); }
+  .stop { cursor: pointer; }
+  .stop .plate { fill: rgba(10,14,34,.62); stroke: rgba(255,255,255,.14); stroke-width: 1.5; transition: all .4s; }
+  .stop.focus .plate { stroke: rgba(245,166,35,.75); stroke-width: 2; }
+  .stop.next .plate { animation: pulse 2.2s infinite; }
+  @keyframes pulse { 0%,100% { stroke: rgba(245,166,35,.95); } 50% { stroke: rgba(255,255,255,.15); } }
+  .stop.done .plate { fill: rgba(245,166,35,.15); stroke: rgba(245,166,35,.8); filter: drop-shadow(0 0 7px rgba(245,166,35,.45)); }
+  .label { font-size: 13.5px; font-weight: 600; fill: #e6e2d8; }
+  .sublabel { font-size: 11px; fill: #8a8fa3; font-weight: 500; }
+  .sublabel.late { fill: #d98a94; }
+  .stop.done .label { fill: #7d829e; text-decoration: line-through; }
+  .focuslbl { font-size: 15px; font-weight: 800; fill: #f5c469; }
+  .waymark { font-size: 11.5px; font-style: italic; fill: #6d7397; }
+  .docklbl { font-size: 11px; fill: #8a8fa3; font-style: italic; }
+  .traveler { filter: drop-shadow(0 0 7px rgba(122,220,255,.8)); pointer-events: none; }
+  .cloud { animation: drift linear infinite; opacity: .45; }
+  @keyframes drift { from { transform: translateX(-40px); } to { transform: translateX(520px); } }
+  .glint { animation: glint 3.2s ease-in-out infinite; }
+  @keyframes glint { 0%,100% { opacity: .12; } 50% { opacity: .55; } }
+  .flame { transform-origin: 50% 100%; animation: flick 1.1s ease-in-out infinite; }
+  @keyframes flick { 50% { transform: scaleY(.82) scaleX(1.08); } }
+  .beam { animation: beam 4s ease-in-out infinite; transform-origin: left center; opacity: .35; }
+  @keyframes beam { 0%,100% { transform: rotate(-8deg); opacity: .15; } 50% { transform: rotate(10deg); opacity: .4; } }
+  .fly { animation: floaty 5s ease-in-out infinite; }
+  @keyframes floaty { 0%,100% { transform: translate(0,0); opacity: .8; } 50% { transform: translate(9px,-12px); opacity: .25; } }
+
+  .sheet-veil { position: fixed; inset: 0; background: rgba(5,8,20,.55); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 8; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; transform: translateY(105%);
+    transition: transform .32s cubic-bezier(.3,.8,.3,1); background: #141a33;
+    border-radius: 22px 22px 0 0; border-top: 1px solid rgba(255,255,255,.1);
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom)); max-width: 520px; margin: 0 auto; }
+  body.sheet-open .sheet { transform: translateY(0); }
+  body.sheet-open .sheet-veil { opacity: 1; pointer-events: auto; }
+  .sheet .t { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+  .sheet .s { color: #8a8fa3; font-size: 13.5px; margin-bottom: 16px; }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .acts button { border: 0; border-radius: 14px; padding: 15px 10px; font-size: 15.5px; font-weight: 700;
+    font-family: inherit; cursor: pointer; background: rgba(255,255,255,.07); color: #ece9e2; }
+  .acts .primary { grid-column: 1 / -1; background: #f5a623; color: #241804; font-size: 17px; }
+  .acts .quiet { color: #9aa0bd; }
+  .sheet input { width: 100%; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+    color: #ece9e2; border-radius: 12px; padding: 13px 14px; font-size: 16px; outline: none; margin-bottom: 12px; }
+  .sheet input:focus { border-color: #f5a623; }
+
+  .addfab { position: fixed; right: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 7;
+    width: 54px; height: 54px; border-radius: 50%; border: 0; background: #f5a623; color: #241804;
+    font-size: 30px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 26px rgba(245,166,35,.4); }
+
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(90px + env(safe-area-inset-bottom));
+    background: #1c2340; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 10px 18px;
+    font-size: 14.5px; z-index: 10; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+  .fin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(10,14,34,.86); backdrop-filter: blur(8px); z-index: 11; text-align: center; }
+  .fin.show { display: flex; }
+  .fin .big { font-size: 54px; } .fin h2 { font-size: 26px; margin: 12px 0 6px; } .fin p { color: #9aa0bd; }
+  .confetti { position: fixed; top: -10px; font-size: 18px; z-index: 12; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <button class="gear" id="gear">⚙︎</button>
+  <header><h1 id="title">Today</h1><div class="prog" id="prog"></div></header>
+  <div id="chip"></div>
+  <div id="scene"></div>
+</div>
+<button class="addfab" id="addfab">+</button>
+<div class="sheet-veil" id="veil"></div>
+<div class="sheet" id="sheet"></div>
+<div class="fin" id="fin"><div><div class="big">⛵️</div><h2>Day walked.</h2><p id="finline"></p></div></div>
+
+<script>
+/* ============ data layer: Todoist live, demo fallback ============ */
+const API = "https://api.todoist.com/api/v1";
+const token = () => localStorage.getItem("todoist_token") || "";
+let DEMO = !token();
+let tasks = [];   // {id, name, sub, focus, overdueSince, blocked, blockedWhy, done}
+let litOrder = [];
+
+const DEMO_TASKS = [
+  { id: "d1", name: "Review the Fable sweep", sub: "the one that moves the week", focus: true },
+  { id: "d2", name: "Soccer camp signup", blocked: true, blockedWhy: "waiting on: sports physical" },
+  { id: "d3", name: "Walk — 30 easy minutes", sub: "no pace goal" },
+  { id: "d4", name: "Draft the HO opener", sub: "hopeful register" },
+  { id: "d5", name: "Reply in the Lily group" },
+  { id: "d6", name: "Read 20 pages", sub: "wind-down, not work" },
+];
+
+async function api(method, path, body) {
+  const r = await fetch(`${API}/${path}`, {
+    method, headers: { Authorization: `Bearer ${token()}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 || r.status === 403) throw new Error("auth");
+  if (!r.ok) throw new Error("api " + r.status);
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+function mapTask(t) {
+  const due = t.due && t.due.date ? t.due.date.slice(0, 10) : null;
+  const desc = t.description || "";
+  const blocked = (t.labels || []).includes("blocked") || /^blocked_on:/i.test(desc);
+  const why = (desc.match(/blocked_on:\s*([^\n.]*)/i) || [])[1];
+  return {
+    id: t.id, name: t.content,
+    sub: !blocked && desc ? desc.split("\n")[0].slice(0, 70) : "",
+    focus: t.priority === 4,
+    overdueSince: due && due < todayISO() ? due.slice(5) : null,
+    blocked, blockedWhy: why ? "waiting on: " + why.trim() : (blocked ? "blocked" : ""),
+    done: false,
+  };
+}
+
+async function loadTasks() {
+  if (DEMO) { tasks = DEMO_TASKS.map(t => ({ sub: "", ...t, done: false })); return; }
+  const d = await api("GET", "tasks/filter?query=" + encodeURIComponent("overdue | today"));
+  const list = (d.results || []).map(mapTask);
+  list.sort((a, b) => (b.focus - a.focus) || ((a.overdueSince ? 0 : 1) - (b.overdueSince ? 0 : 1)));
+  tasks = list;
+}
+
+/* ============ scene geometry ============ */
+const W = 480;
+const XPAT = [150, 344, 128, 356, 118, 338, 196, 330, 142, 352];
+const SPAT = [148, 126, 168, 132, 152, 124, 160, 138];
+const WAYS = ["the fog lifts", "downhill from here", "harbor lights ahead", "steady water", "a good stretch"];
+
+function active() { return tasks.filter(t => !t.blocked); }
+function blockedList() { return tasks.filter(t => t.blocked); }
+
+let geo = null;
+function layout() {
+  const act = active();
+  const n = Math.max(act.length, 1);
+  let y = 120, ys = [];
+  for (let i = 0; i < n; i++) { y += SPAT[i % SPAT.length]; ys.push(y); }
+  const harbor = { x: 252, y: y + 170 };
+  const H = harbor.y + 96;
+  const pts = act.map((t, i) => ({ x: XPAT[i % XPAT.length], y: ys[i] }));
+  geo = { act, n, ys, harbor, H, pts };
+}
+
+function trailD() {
+  const { pts, harbor } = geo;
+  const start = { x: W / 2, y: 54 };
+  let d = `M ${start.x} ${start.y}`;
+  const all = [start, ...pts, harbor];
+  for (let i = 1; i < all.length; i++) {
+    const a = all[i-1], b = all[i], my = (a.y + b.y) / 2;
+    d += ` C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y}`;
+  }
+  return d;
+}
+
+/* ============ landmark art (layered vector, consistent dusk/amber) ============ */
+function glyphFor(t) {
+  const n = t.name.toLowerCase();
+  if (t.focus) return lighthouse();
+  if (/walk|run|hike|exercise|gym|miles/.test(n)) return footsign();
+  if (/read|book|pages|wind.?down/.test(n)) return campfire();
+  if (/reply|message|email|text|group|call/.test(n)) return mailbox();
+  if (/plant|water|garden|house|dish|laundry/.test(n)) return sprout();
+  if (/sign.?up|pay|buy|order|renew|schedule/.test(n)) return flagpost();
+  return lantern();
+}
+function lighthouse() { return `<g transform="translate(0 2)">
+  <path d="M-7 14 L-4 -12 L4 -12 L7 14 Z" fill="#2a3158" stroke="#3c4470" stroke-width="1"/>
+  <rect x="-7" y="-1" width="14" height="4" fill="#f5a623" opacity=".85"/>
+  <rect x="-5" y="-17" width="10" height="6" rx="1.5" fill="#1d2344"/>
+  <circle cx="0" cy="-14" r="3.2" fill="#ffd98a"><animate attributeName="opacity" values="1;.45;1" dur="2.6s" repeatCount="indefinite"/></circle>
+  <path class="beam" d="M2 -14 L40 -22 L40 -6 Z" fill="#ffd98a"/>
+  <path d="M-9 14 H9" stroke="#3c4470" stroke-width="2" stroke-linecap="round"/></g>`; }
+function lantern() { return `<g transform="translate(0 2)">
+  <path d="M-1 -16 H1 V-9 H-1 Z" fill="#4a4160"/><path d="M-6 -16 H6" stroke="#4a4160" stroke-width="2" stroke-linecap="round"/>
+  <rect x="-5" y="-9" width="10" height="13" rx="2.5" fill="#241f3e" stroke="#4a4160"/>
+  <rect x="-3" y="-6.5" width="6" height="8" rx="1.5" fill="#ffbe55"><animate attributeName="opacity" values="1;.7;1" dur="2.2s" repeatCount="indefinite"/></rect>
+  <path d="M-4 8 H4" stroke="#4a4160" stroke-width="2" stroke-linecap="round"/></g>`; }
+function campfire() { return `<g transform="translate(0 5)">
+  <path d="M-9 6 L9 2 M-9 2 L9 6" stroke="#4a3a54" stroke-width="3" stroke-linecap="round"/>
+  <g class="flame"><path d="M0 -14 C5 -8 7 -4 4 1 C2 4 -2 4 -4 1 C-7 -4 -5 -8 0 -14 Z" fill="#f58a3c"/>
+  <path d="M0 -8 C2.6 -4 3 -2 1.6 .6 C.6 2 -1 2 -2 .6 C-3.4 -2 -2.6 -4 0 -8 Z" fill="#ffd98a"/></g></g>`; }
+function footsign() { return `<g transform="translate(0 2)">
+  <rect x="-1.2" y="-6" width="2.4" height="18" fill="#4a4160"/>
+  <rect x="-11" y="-15" width="22" height="11" rx="2.5" fill="#241f3e" stroke="#4a4160"/>
+  <ellipse cx="-3" cy="-10.5" rx="2.4" ry="3.4" fill="#9fd0a8" transform="rotate(-14 -3 -10.5)"/>
+  <ellipse cx="3.4" cy="-9" rx="2.4" ry="3.4" fill="#9fd0a8" transform="rotate(12 3.4 -9)"/></g>`; }
+function mailbox() { return `<g transform="translate(0 2)">
+  <rect x="-1.2" y="-2" width="2.4" height="14" fill="#4a4160"/>
+  <path d="M-9 -12 h13 a5 5 0 0 1 5 5 v5 h-18 v-5 a5 5 0 0 1 5 -5 z" fill="#2a3158" stroke="#4a4160"/>
+  <path d="M-6 -12 v10" stroke="#4a4160"/><rect x="6" y="-19" width="2" height="7" fill="#f5a623"/>
+  <path d="M8 -19 l5 2 -5 2 z" fill="#f5a623"/></g>`; }
+function sprout() { return `<g transform="translate(0 4)">
+  <path d="M-7 0 h14 l-2.5 9 h-9 z" fill="#3a3054" stroke="#4a4160"/>
+  <path d="M0 0 C0 -6 0 -8 0 -10" stroke="#7fbf8a" stroke-width="2" stroke-linecap="round"/>
+  <path d="M0 -8 C-6 -9 -7 -13 -8 -15 C-3 -15 -1 -12 0 -8 Z" fill="#9fd0a8"/>
+  <path d="M0 -10 C5 -11 6 -14 7 -16 C3 -16 1 -13 0 -10 Z" fill="#7fbf8a"/></g>`; }
+function flagpost() { return `<g transform="translate(0 2)">
+  <rect x="-1" y="-16" width="2" height="28" fill="#4a4160"/>
+  <path d="M1 -16 L15 -12 L1 -8 Z" fill="#f5a623"><animateTransform attributeName="transform" type="skewY" values="0;3;0;-2;0" dur="3s" repeatCount="indefinite"/></path></g>`; }
+function anchorArt() { return `<g>
+  <circle cx="0" cy="-8" r="2.6" fill="none" stroke="#8a8fa3" stroke-width="1.6"/>
+  <path d="M0 -5.4 V7 M-6 0 H6 M-6 4 C-6 8 -3 10 0 10 C3 10 6 8 6 4" fill="none" stroke="#8a8fa3" stroke-width="1.6" stroke-linecap="round"/></g>`; }
+
+/* ============ scenery ============ */
+function scenery() {
+  const { ys, harbor, H, n } = geo;
+  const yAt = f => 120 + (harbor.y - 200) * f;
+  const hill = (f, amp, fill) => {
+    const base = yAt(f);
+    return `<path d="M0 ${base} Q 120 ${base - amp} 250 ${base + amp * .3} T 480 ${base - amp * .5} V ${H} H 0 Z" fill="${fill}"/>`;
+  };
+  const tree = (x, ty, s, hue) => `<g transform="translate(${x} ${ty}) scale(${s})">
+    <rect x="-1.6" y="5" width="3.2" height="9" rx="1.6" fill="#2b2347"/>
+    <path d="M0 -16 C7 -9 10 -2 8 3 C5 7 -5 7 -8 3 C-10 -2 -7 -9 0 -16 Z" fill="${hue}"/></g>`;
+  let trees = "";
+  const hues = ["#22355f", "#273f6e", "#1f3057"];
+  for (let i = 0; i < Math.min(n * 2 + 4, 14); i++) {
+    const f = (i + 1) / (Math.min(n * 2 + 4, 14) + 1);
+    const x = (i % 2 === 0) ? 30 + (i * 37) % 90 : 390 + (i * 29) % 70;
+    trees += tree(x, yAt(f) + 46, .7 + ((i * 7) % 10) / 14, hues[i % 3]);
+  }
+  const cloud = (cy, dur, delay, s) => `<g class="cloud" style="animation-duration:${dur}s; animation-delay:${delay}s" transform="translate(0 ${cy}) scale(${s})">
+    <ellipse cx="0" cy="0" rx="30" ry="9" fill="#252e57"/><ellipse cx="22" cy="-6" rx="19" ry="7" fill="#252e57"/></g>`;
+  const stars = Array.from({ length: 26 }, (_, i) =>
+    `<circle cx="${(i * 97) % 470 + 5}" cy="${(i * 53) % 90 + 6}" r="${.6 + (i % 3) * .5}" fill="#cdd3f2" opacity="${.12 + (i % 4) * .08}"/>`).join("");
+  const glints = Array.from({ length: 6 }, (_, i) =>
+    `<rect class="glint" x="${60 + i * 68}" y="${harbor.y - 44 + (i % 3) * 26}" width="26" height="2.4" rx="1.2" fill="#7adcff" style="animation-delay:${i * .55}s"/>`).join("");
+  const shore = `<path d="M0 ${harbor.y - 66} Q 120 ${harbor.y - 92} 260 ${harbor.y - 60} T 480 ${harbor.y - 74} V ${H} H 0 Z" fill="#0d1330"/>`;
+  const flies = [[210, harbor.y - 130], [150, harbor.y - 90], [300, harbor.y - 110]].map(([x, fy], i) =>
+    `<circle class="fly" cx="${x}" cy="${fy}" r="2" fill="#ffe9a3" style="animation-delay:${i * 1.3}s"/>`).join("");
+  const dock = `<g transform="translate(${harbor.x} ${harbor.y})">
+    <rect x="-46" y="10" width="92" height="6" rx="3" fill="#2b2347"/>
+    <rect x="-40" y="16" width="5" height="14" fill="#241f3e"/><rect x="35" y="16" width="5" height="14" fill="#241f3e"/>
+    <path d="M-14 6 C-14 -2 14 -2 14 6 L10 10 H-10 Z" fill="#2a3158" stroke="#3c4470"/>
+    <path d="M0 -2 V-16 M0 -16 L11 -7 H0" stroke="#d9d6cf" stroke-width="1.6" fill="rgba(217,214,207,.14)"/></g>`;
+  return `<rect width="${W}" height="${H}" fill="url(#skyg)"/>${stars}
+    ${cloud(64, 75, 0, 1)}${cloud(yAt(.3), 100, -40, .8)}${cloud(yAt(.62), 115, -70, 1.15)}
+    ${hill(.06, 60, "#111737")}${hill(.3, 76, "#151c40")}${hill(.55, 64, "#191f48")}${hill(.78, 70, "#1e234e")}
+    ${trees}${shore}${glints}${flies}${dock}`;
+}
+
+/* ============ render ============ */
+function render(fade = false) {
+  layout();
+  const scene = document.getElementById("scene");
+  const doRender = () => {
+    const { act, pts, harbor, H } = geo;
+    let stopsHtml = "", wayHtml = "", dockHtml = "";
+    act.forEach((t, i) => {
+      const p = pts[i];
+      const r = t.focus ? 25 : 20;
+      const side = p.x < W / 2 ? 1 : -1;
+      const lx = p.x + side * (r + 13), anchor = side === 1 ? "start" : "end";
+      const subText = t.overdueSince ? `since ${t.overdueSince}` : (t.sub || "");
+      stopsHtml += `<g class="stop ${t.focus ? "focus" : ""} ${t.done ? "done" : ""}" data-id="${t.id}">
+        <circle class="plate" cx="${p.x}" cy="${p.y}" r="${r}"/>
+        <g transform="translate(${p.x} ${p.y}) scale(${t.focus ? 1.15 : .95})">${glyphFor(t)}</g>
+        <text class="label ${t.focus ? "focuslbl" : ""}" x="${lx}" y="${p.y + (subText ? 0 : 5)}" text-anchor="${anchor}">${esc(t.name)}</text>
+        ${subText ? `<text class="sublabel ${t.overdueSince ? "late" : ""}" x="${lx}" y="${p.y + 16}" text-anchor="${anchor}">${esc(subText)}</text>` : ""}</g>`;
+      if (i < act.length - 1 && i % 2 === 1) {
+        const my = (p.y + pts[i+1].y) / 2, mside = pts[i+1].x < W/2 ? -1 : 1;
+        wayHtml += `<text class="waymark" x="${W/2 + mside * 60}" y="${my}" text-anchor="middle">· ${WAYS[(i >> 1) % WAYS.length]} ·</text>`;
+      }
+    });
+    blockedList().forEach((t, i) => {
+      const by = 150 + i * 88, side = i % 2 === 0 ? 1 : -1;
+      const bx = side === 1 ? W - 52 : 52;
+      const anchor = side === 1 ? "end" : "start", lx = bx + (side === 1 ? -30 : 30);
+      dockHtml += `<g class="stop" data-id="${t.id}" opacity=".78">
+        <rect x="${bx - 34}" y="${by + 16}" width="68" height="5" rx="2.5" fill="#2b2347"/>
+        <circle class="plate" cx="${bx}" cy="${by}" r="17" stroke-dasharray="3 4"/>
+        <g transform="translate(${bx} ${by}) scale(.85)">${anchorArt()}</g>
+        <text class="label" x="${lx}" y="${by - 2}" text-anchor="${anchor}" fill="#9aa0bd">${esc(t.name)}</text>
+        <text class="docklbl" x="${lx}" y="${by + 13}" text-anchor="${anchor}">${esc(t.blockedWhy)}</text></g>`;
+    });
+    scene.innerHTML = `<svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">
+      <defs><linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0a0e22"/><stop offset=".4" stop-color="#131a3d"/>
+        <stop offset=".75" stop-color="#241f4e"/><stop offset="1" stop-color="#322257"/>
+      </linearGradient></defs>
+      ${scenery()}
+      <path class="trail-base" d="${trailD()}"/>
+      <path class="trail-lit" id="lit" d="${trailD()}"/>
+      ${wayHtml}<g id="stops">${stopsHtml}${dockHtml}</g>
+      <g class="traveler" id="traveler"><circle r="8.5" fill="#7adcff"/><circle r="3.5" fill="#eafaff"/></g>
+    </svg>`;
+    wireTrail();
+    scene.classList.remove("fading");
+  };
+  if (fade) { scene.classList.add("fading"); setTimeout(doRender, 360); } else doRender();
+  document.getElementById("prog").textContent =
+    `${active().filter(t => t.done).length} of ${active().length} stops`;
+  document.getElementById("chip").innerHTML = DEMO
+    ? `<span class="chip">demo day — tap ⚙︎ to connect your Todoist</span>` : "";
+}
+
+let lit, L, stopLen = [], travelerLen = 0;
+function wireTrail() {
+  lit = document.getElementById("lit");
+  L = lit.getTotalLength();
+  lit.style.strokeDasharray = L;
+  const { act, pts } = geo;
+  stopLen = [];
+  const samples = 500;
+  let best = pts.map(() => ({ d: 1e9, len: 0 }));
+  for (let s = 0; s <= samples; s++) {
+    const len = (L * s) / samples, p = lit.getPointAtLength(len);
+    pts.forEach((q, i) => { const d = Math.hypot(p.x - q.x, p.y - q.y); if (d < best[i].d) best[i] = { d, len }; });
+  }
+  best.forEach(b => stopLen.push(b.len));
+  const f = frontierLen();
+  lit.style.transition = "none";
+  lit.style.strokeDashoffset = L - f;
+  requestAnimationFrame(() => { lit.style.transition = ""; });
+  travelerLen = f; placeTraveler(f);
+  const next = act.find(t => !t.done);
+  document.querySelectorAll(".stop").forEach(el => {
+    el.addEventListener("click", () => openSheet(el.dataset.id));
+    if (next && el.dataset.id == next.id) el.classList.add("next");
+  });
+}
+function frontierLen() {
+  const idxs = geo.act.map((t, i) => t.done ? i : -1).filter(i => i >= 0);
+  return idxs.length ? stopLen[Math.max(...idxs)] : 0;
+}
+function placeTraveler(len) {
+  const p = lit.getPointAtLength(Math.max(0, Math.min(len, L - 1)));
+  document.getElementById("traveler").setAttribute("transform", `translate(${p.x}, ${p.y})`);
+}
+function walkTo(target) {
+  const from = travelerLen, dist = target - from, dur = 1100, t0 = performance.now();
+  (function step(now) {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    placeTraveler(from + dist * e);
+    if (k < 1) requestAnimationFrame(step); else travelerLen = target;
+  })(performance.now());
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 3200);
+}
+
+/* ============ action sheet ============ */
+const sheet = document.getElementById("sheet"), veil = document.getElementById("veil");
+function openSheet(id) {
+  const t = tasks.find(x => String(x.id) === String(id));
+  if (!t || t.done) return;
+  sheet.innerHTML = `<div class="t">${esc(t.name)}</div>
+    <div class="s">${esc(t.blocked ? t.blockedWhy : (t.sub || (t.overdueSince ? "waiting since " + t.overdueSince : "on today's path")))}</div>
+    <div class="acts">
+      ${t.blocked
+        ? `<button class="primary" data-a="unblock">⚓️ Unblock — back on the path</button>`
+        : `<button class="primary" data-a="done">✓ Done — light it</button>
+           <button data-a="tomorrow">📅 Tomorrow</button>
+           <button data-a="block" id="blockbtn">⚓️ Blocked…</button>`}
+      <button data-a="notoday" class="quiet">🌫 Not today</button>
+      <button data-a="close" class="quiet">back</button>
+    </div>`;
+  sheet.querySelectorAll("button").forEach(b => b.addEventListener("click", () => act(t, b.dataset.a)));
+  document.body.classList.add("sheet-open");
+}
+function closeSheet() { document.body.classList.remove("sheet-open"); }
+veil.addEventListener("click", closeSheet);
+
+async function act(t, a) {
+  if (a === "close") return closeSheet();
+  try {
+    if (a === "done") {
+      closeSheet();
+      t.done = true;
+      if (!DEMO) await api("POST", `tasks/${t.id}/close`);
+      const f = frontierLen();
+      lit.style.strokeDashoffset = L - f;
+      document.querySelector(`.stop[data-id="${t.id}"]`)?.classList.add("done");
+      walkTo(f);
+      document.getElementById("prog").textContent = `${active().filter(x => x.done).length} of ${active().length} stops`;
+      if (active().every(x => x.done)) setTimeout(finish, 1300);
+      else setTimeout(() => render(), 1400);
+    } else if (a === "tomorrow") {
+      closeSheet();
+      if (!DEMO) await api("POST", `tasks/${t.id}`, { due_string: "tomorrow" });
+      tasks = tasks.filter(x => x.id !== t.id);
+      toast("Moved to tomorrow's path");
+      render(true);
+    } else if (a === "notoday") {
+      closeSheet();
+      if (!DEMO) await api("POST", `tasks/${t.id}`, { due_string: "no due date" });
+      tasks = tasks.filter(x => x.id !== t.id);
+      toast("Off the path — resting in the inbox");
+      render(true);
+    } else if (a === "block") {
+      const why = prompt("Waiting on what?") || "";
+      closeSheet();
+      if (why.trim()) {
+        t.blocked = true; t.blockedWhy = "waiting on: " + why.trim();
+        if (!DEMO) await api("POST", `tasks/${t.id}`, { description: ("blocked_on: " + why.trim() + "\n" + (t.subRaw || "")).trim() });
+        toast("Anchored at the side dock");
+        render(true);
+      }
+    } else if (a === "unblock") {
+      closeSheet();
+      t.blocked = false; t.blockedWhy = "";
+      if (!DEMO) await api("POST", `tasks/${t.id}`, { description: "" });
+      toast("Back on the path");
+      render(true);
+    }
+  } catch (e) { toast("Couldn't save that — try again"); }
+}
+
+/* ============ add ============ */
+document.getElementById("addfab").addEventListener("click", () => {
+  sheet.innerHTML = `<div class="t">New stop</div>
+    <div class="s">lands on today's path</div>
+    <input id="newtask" type="text" placeholder="What needs doing?" autocomplete="off">
+    <div class="acts"><button class="primary" id="addgo">Add to the path</button>
+    <button class="quiet" id="addcancel">back</button></div>`;
+  document.body.classList.add("sheet-open");
+  const inp = document.getElementById("newtask");
+  setTimeout(() => inp.focus(), 350);
+  document.getElementById("addcancel").addEventListener("click", closeSheet);
+  document.getElementById("addgo").addEventListener("click", async () => {
+    const text = inp.value.trim(); if (!text) return;
+    closeSheet();
+    try {
+      if (DEMO) tasks.push({ id: "d" + Math.random(), name: text, sub: "", done: false });
+      else { const created = await api("POST", "tasks", { content: text, due_string: "today" }); tasks.push(mapTask(created)); }
+      toast("A detour appeared");
+      render(true);
+    } catch { toast("Couldn't add — try again"); }
+  });
+});
+
+/* ============ settings / token ============ */
+document.getElementById("gear").addEventListener("click", () => {
+  sheet.innerHTML = `<div class="t">Connect Todoist</div>
+    <div class="s">Paste your API token — it stays on this device only.</div>
+    <input id="tok" type="password" placeholder="Todoist API token" value="">
+    <div class="acts"><button class="primary" id="tokgo">Connect</button>
+    <button class="quiet" id="tokdemo">use demo day</button></div>`;
+  document.body.classList.add("sheet-open");
+  document.getElementById("tokgo").addEventListener("click", async () => {
+    localStorage.setItem("todoist_token", document.getElementById("tok").value.trim());
+    DEMO = !token(); closeSheet(); boot();
+  });
+  document.getElementById("tokdemo").addEventListener("click", () => {
+    localStorage.removeItem("todoist_token"); DEMO = true; closeSheet(); boot();
+  });
+});
+
+function finish() {
+  document.getElementById("finline").textContent = "Every lantern lit. The boat can go out.";
+  document.getElementById("fin").classList.add("show");
+  for (let i = 0; i < 36; i++) {
+    const c = document.createElement("div"); c.className = "confetti";
+    c.textContent = ["✨","🎉","⭐️","🔸"][i % 4];
+    c.style.left = Math.random() * 100 + "vw";
+    c.style.animationDuration = 2.2 + Math.random() * 2 + "s";
+    c.style.animationDelay = Math.random() * .8 + "s";
+    document.body.appendChild(c);
+  }
+}
+document.getElementById("fin").addEventListener("click", () => document.getElementById("fin").classList.remove("show"));
+
+async function boot() {
+  try { await loadTasks(); }
+  catch (e) {
+    if (e.message === "auth") { DEMO = true; toast("Token didn't work — demo day for now"); await loadTasks(); }
+    else { toast("Couldn't reach Todoist — demo day"); DEMO = true; await loadTasks(); }
+  }
+  render();
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !DEMO) boot(); });
+boot();
+</script>
+</body>
+</html>
