@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Today</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
+  html { background: #0a0e22; }
+  body { color: #ece9e2; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    overflow-x: hidden; }
+
+  /* ——— atmosphere ——— */
+  #skybase { position: fixed; inset: 0; z-index: -3;
+    background: linear-gradient(180deg, #0a0e22 0%, #10162f 45%, #141b3d 100%); }
+  #stars { position: fixed; inset: -20% 0; z-index: -2; will-change: transform; }
+  .star { position: absolute; border-radius: 50%; background: #cdd3f2; }
+  .star.warm { background: #ffd98a; }
+  .star.tw { animation: tw 4s ease-in-out infinite; }
+  @keyframes tw { 50% { opacity: .15; } }
+  #vignette { position: fixed; inset: 0; z-index: 30; pointer-events: none;
+    background: linear-gradient(180deg, rgba(6,9,20,.55) 0%, transparent 12%, transparent 86%, rgba(6,9,20,.6) 100%); }
+  #skydim { position: fixed; inset: 0; z-index: 6; pointer-events: none; background: rgba(4,6,16,.45);
+    opacity: 0; transition: opacity 2s; }
+  body.kraken-up #skydim { opacity: 1; }
+
+  /* ——— header ——— */
+  header { position: fixed; top: 0; left: 0; right: 0; z-index: 40; display: flex; justify-content: space-between;
+    align-items: baseline; padding: calc(14px + env(safe-area-inset-top)) 52px 10px 20px;
+    background: linear-gradient(180deg, rgba(10,14,34,.85), transparent); transition: opacity .4s; }
+  header.hidden { opacity: 0; pointer-events: none; }
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+  .prog { color: #9aa0bd; font-size: 13.5px; font-weight: 600; }
+  .gear { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 14px; z-index: 41;
+    background: none; border: 0; color: #6d7397; font-size: 18px; cursor: pointer; }
+  .chip { position: fixed; top: calc(54px + env(safe-area-inset-top)); left: 20px; z-index: 40;
+    background: rgba(245,166,35,.12); border: 1px solid rgba(245,166,35,.4); color: #f5c469;
+    font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 11px; }
+
+  /* ——— world ——— */
+  #world { position: relative; }
+  #route { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .route-base { stroke: rgba(255,241,214,.22); stroke-width: 4; fill: none; stroke-linecap: round; stroke-dasharray: .1 13; }
+  .route-lit { stroke: #f5a623; stroke-width: 4; fill: none; stroke-linecap: round;
+    filter: drop-shadow(0 0 6px rgba(245,166,35,.5)); transition: stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1); }
+  .drift-trail { stroke: rgba(122,220,255,.3); stroke-width: 2.5; fill: none; stroke-linecap: round;
+    stroke-dasharray: 1 9; }
+
+  .reachband { position: absolute; width: 100%; z-index: 0; pointer-events: none;
+    border-top: 1px solid rgba(255,255,255,.045); }
+  .reachband .rlabel { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    font-size: 10.5px; font-weight: 800; letter-spacing: .34em; text-transform: uppercase; color: #565b7d;
+    text-shadow: 0 1px 8px rgba(6,9,20,.9); }
+  .reachband.current .rlabel { color: #8f95b8; }
+
+  .island { position: absolute; z-index: 2; width: 100%; pointer-events: none; }
+  .isle-art { position: absolute; pointer-events: auto; cursor: pointer;
+    transition: filter 1.4s ease, opacity 1.4s ease; }
+  .isle-art img { width: 100%; height: 100%; display: block;
+    -webkit-mask-image: radial-gradient(closest-side, #000 55%, rgba(0,0,0,.9) 72%, transparent 96%);
+    mask-image: radial-gradient(closest-side, #000 55%, rgba(0,0,0,.9) 72%, transparent 96%); }
+  .reflection { position: absolute; left: 12%; right: 12%; height: 24px; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(245,166,35,.16), transparent 70%); filter: blur(4px); }
+  .island.foggy .isle-art { filter: brightness(.42) saturate(.35) contrast(.85); }
+  .island.done .isle-art { filter: brightness(1.08) saturate(1.15) drop-shadow(0 0 18px rgba(245,166,35,.35)); }
+  .island.next .isle-art::after { content: ""; position: absolute; inset: -6%; border-radius: 50%;
+    box-shadow: 0 0 40px 6px rgba(245,166,35,.13); animation: breathe 3s infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 22px 2px rgba(245,166,35,.05); } }
+  .fogbank { position: absolute; z-index: 3; pointer-events: none; opacity: 1; transition: opacity 1.6s ease;
+    background: radial-gradient(ellipse at center, rgba(150,160,200,.15), rgba(150,160,200,.05) 55%, transparent 75%);
+    filter: blur(2px); }
+  .island.next .fogbank, .island.done .fogbank, .island.soon .fogbank { opacity: 0; }
+  .island.soon .isle-art { filter: brightness(.8) saturate(.8); }
+
+  .titlecard { position: absolute; z-index: 4; width: 100%; text-align: center; pointer-events: none; padding: 0 30px; }
+  .titlecard .kicker { font-size: 11px; font-weight: 800; letter-spacing: .24em; text-transform: uppercase;
+    color: #8f95b8; margin-bottom: 5px; }
+  .titlecard.focus .kicker { color: #f5c469; }
+  .titlecard .name { font-size: 26px; font-weight: 800; line-height: 1.16; letter-spacing: -.4px;
+    text-wrap: balance; text-shadow: 0 2px 18px rgba(6,9,20,.85); pointer-events: auto; cursor: pointer; }
+  .titlecard .sub { color: #9aa0bd; font-size: 13.5px; margin-top: 5px; }
+  .titlecard .sub.late { color: #d98a94; }
+  .titlecard .sub.drift { color: #7adcff; opacity: .75; font-style: italic; }
+  .island.done .titlecard .name { text-decoration: line-through; color: #7d829e; }
+  .island.done .titlecard .kicker::after { content: " · sailed"; color: #f5a623; letter-spacing: .1em; }
+  .island.home-isle .titlecard .kicker::after { content: none; }
+  .island.foggy .titlecard { opacity: .35; }
+
+  .buoy { position: absolute; z-index: 2; pointer-events: auto; cursor: pointer; text-align: center; opacity: .78; }
+  .buoy img { width: 116px; height: 116px;
+    -webkit-mask-image: radial-gradient(closest-side, #000 62%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 62%, transparent 100%); }
+  .buoy .blabel { font-size: 12px; font-weight: 600; color: #9aa0bd; max-width: 130px; margin-top: -14px; }
+  .buoy .bwhy { font-size: 10px; font-style: italic; color: #6d7397; max-width: 120px; }
+
+  #boatwrap { position: absolute; z-index: 5; width: 0; height: 0; pointer-events: none; }
+  #boat { position: absolute; width: 92px; height: 92px; left: -46px; top: -60px;
+    filter: drop-shadow(0 6px 14px rgba(6,9,20,.6)); animation: bob 3.6s ease-in-out infinite; }
+  #boat img { width: 100%; height: 100%;
+    -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
+    mask-image: radial-gradient(closest-side, #000 52%, transparent 96%); }
+  @keyframes bob { 0%,100% { transform: translateY(0) rotate(-1.2deg); } 50% { transform: translateY(-5px) rotate(1.4deg); } }
+  #dinghy { position: absolute; width: 60px; height: 60px; left: 26px; top: -8px; display: none;
+    animation: bob 3.6s ease-in-out infinite reverse; }
+  #dinghy img { width: 100%; height: 100%;
+    -webkit-mask-image: radial-gradient(closest-side, #000 52%, transparent 96%);
+    mask-image: radial-gradient(closest-side, #000 52%, transparent 96%); }
+  body.towing #dinghy { display: block; }
+  #towrope { position: absolute; z-index: 4; pointer-events: none; display: none; }
+  body.towing #towrope { display: block; }
+
+  .shimmer { position: absolute; height: 2px; border-radius: 1px; background: #7adcff; opacity: .16;
+    animation: shim 3.6s ease-in-out infinite; z-index: 0; }
+  @keyframes shim { 50% { opacity: .45; } }
+  .firefly { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #ffe9a3; z-index: 3;
+    animation: flyy 6s ease-in-out infinite; }
+  @keyframes flyy { 0%,100% { transform: translate(0,0); opacity: .7; } 50% { transform: translate(12px,-16px); opacity: .15; } }
+  .waymark { position: absolute; width: 100%; text-align: center; z-index: 1;
+    font-size: 11.5px; font-style: italic; color: #6d7397; pointer-events: none; }
+
+  /* ——— creatures ——— */
+  .creature { position: fixed; z-index: 7; pointer-events: none; transition: transform 1.8s ease, opacity 1.8s ease; }
+  .creature img { width: 100%; height: 100%;
+    -webkit-mask-image: radial-gradient(closest-side, #000 50%, transparent 96%);
+    mask-image: radial-gradient(closest-side, #000 50%, transparent 96%); }
+  .creature.hidden { opacity: 0; transform: translateY(60px) scale(.85); display: none; }
+  .creature.retreat { opacity: 0 !important; transform: translateY(120px) scale(.7) !important; }
+  #cr-serpent { bottom: 12vh; right: -6px; width: 96px; height: 96px; opacity: .55; animation: crbob 5s ease-in-out infinite; }
+  #cr-serpent.mood-sly { width: 130px; height: 130px; opacity: .9; right: 2px; }
+  #cr-serpent.mood-close { width: 165px; height: 165px; opacity: 1; right: 6px; bottom: 16vh; }
+  #cr-sirens { top: 17vh; left: -8px; width: 104px; height: 104px; opacity: .5; animation: crbob 6s ease-in-out infinite; }
+  #cr-sirens.mood-hungry { width: 150px; height: 150px; opacity: .95; left: 0; }
+  #cr-tentacle { bottom: 4vh; left: 4vw; width: 110px; height: 110px; opacity: .9; animation: crbob 4.2s ease-in-out infinite; }
+  #cr-kraken { bottom: -2vh; left: 50%; transform: translateX(-50%); width: min(60vw, 300px); height: min(60vw, 300px);
+    opacity: .95; z-index: 8; animation: crbob 5.5s ease-in-out infinite; }
+  #cr-kraken.hidden { transform: translateX(-50%) translateY(80px) scale(.85); }
+  @keyframes crbob { 0%,100% { margin-bottom: 0; } 50% { margin-bottom: 10px; } }
+
+  /* ——— sheet ——— */
+  .sheet-veil { position: fixed; inset: 0; background: rgba(5,8,20,.55); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 48; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 49; transform: translateY(105%);
+    transition: transform .32s cubic-bezier(.3,.8,.3,1); background: #141a33;
+    border-radius: 22px 22px 0 0; border-top: 1px solid rgba(255,255,255,.1);
+    padding: 20px 20px calc(24px + env(safe-area-inset-bottom)); max-width: 520px; margin: 0 auto;
+    max-height: 76vh; overflow-y: auto; }
+  body.sheet-open .sheet { transform: translateY(0); }
+  body.sheet-open .sheet-veil { opacity: 1; pointer-events: auto; }
+  .sheet .t { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+  .sheet .s { color: #8a8fa3; font-size: 13.5px; margin-bottom: 16px; }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .acts button { border: 0; border-radius: 14px; padding: 14px 10px; font-size: 15px; font-weight: 700;
+    font-family: inherit; cursor: pointer; background: rgba(255,255,255,.07); color: #ece9e2; }
+  .acts .primary { grid-column: 1 / -1; background: #f5a623; color: #241804; font-size: 17px; }
+  .acts .quiet { color: #9aa0bd; }
+  .sheet input { width: 100%; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+    color: #ece9e2; border-radius: 12px; padding: 13px 14px; font-size: 16px; outline: none; margin-bottom: 12px; }
+  .sheet input:focus { border-color: #f5a623; }
+  .reachpick { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .reachpick button { flex: 1; min-width: 60px; border: 1px solid rgba(255,255,255,.14); background: none;
+    color: #9aa0bd; border-radius: 10px; padding: 9px 4px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .reachpick button.on { border-color: #f5a623; color: #f5c469; background: rgba(245,166,35,.1); }
+
+  /* ——— chart ——— */
+  #chartbtn { position: fixed; left: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 45;
+    width: 54px; height: 54px; border-radius: 50%; border: 1px solid rgba(255,255,255,.16);
+    background: rgba(20,26,51,.92); color: #ece9e2; font-size: 24px; cursor: pointer;
+    box-shadow: 0 8px 26px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
+  #chart { position: fixed; inset: 0; z-index: 46; background: linear-gradient(180deg, #0d1128 0%, #131834 100%);
+    transform: translateY(103%); transition: transform .4s cubic-bezier(.3,.8,.3,1);
+    overflow-y: auto; padding: calc(18px + env(safe-area-inset-top)) 18px 120px; }
+  body.chart-open #chart { transform: translateY(0); }
+  #chart::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .05;
+    background-image: repeating-linear-gradient(0deg, transparent 0 34px, #7adcff 34px 35px),
+      repeating-linear-gradient(90deg, transparent 0 34px, #7adcff 34px 35px); }
+  .ch-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .ch-head h2 { font-size: 24px; font-weight: 800; letter-spacing: -.3px; }
+  .ch-close { background: none; border: 0; color: #8f95b8; font-size: 26px; cursor: pointer; padding: 4px 8px; }
+  .ch-sub { color: #8a8fa3; font-size: 13.5px; margin-bottom: 18px; }
+  .ch-reach { margin-bottom: 20px; }
+  .ch-reach h3 { font-size: 11px; font-weight: 800; letter-spacing: .28em; text-transform: uppercase;
+    color: #565b7d; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.06); padding-bottom: 5px; }
+  .ch-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
+    background: rgba(255,255,255,.035); margin-bottom: 6px; }
+  .ch-row img { width: 40px; height: 40px; flex: none; border-radius: 10px;
+    -webkit-mask-image: radial-gradient(closest-side, #000 60%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 60%, transparent 100%); }
+  .ch-row .n { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 600; overflow-wrap: break-word; }
+  .ch-row .n .meta { display: block; font-size: 11px; color: #8a8fa3; font-weight: 500; margin-top: 1px; }
+  .ch-row.done .n { text-decoration: line-through; color: #7d829e; }
+  .ch-row .ract { display: flex; gap: 5px; flex: none; }
+  .ch-row .ract button { border: 0; background: rgba(255,255,255,.07); color: #cfd3e8; width: 33px; height: 33px;
+    border-radius: 9px; font-size: 14px; cursor: pointer; }
+  .ch-row .ract button.did { background: rgba(245,166,35,.85); color: #241804; }
+  .ch-tide { width: 100%; border: 1px dashed rgba(122,220,255,.4); background: rgba(122,220,255,.06);
+    color: #7adcff; border-radius: 14px; padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: inherit; margin: 6px 0 18px; }
+
+  .addfab { position: fixed; right: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 45;
+    width: 54px; height: 54px; border-radius: 50%; border: 0; background: #f5a623; color: #241804;
+    font-size: 30px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 26px rgba(245,166,35,.4); }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom));
+    background: #1c2340; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 10px 18px;
+    font-size: 14.5px; z-index: 50; box-shadow: 0 6px 24px rgba(0,0,0,.45); max-width: 86vw; text-align: center; }
+  .fin { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(10,14,34,.86); backdrop-filter: blur(8px); z-index: 51; text-align: center; }
+  .fin.show { display: flex; }
+  .fin .big { font-size: 54px; } .fin h2 { font-size: 28px; margin: 12px 0 6px; } .fin p { color: #9aa0bd; }
+  .confetti { position: fixed; top: -10px; font-size: 18px; z-index: 52; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .2; } }
+</style>
+</head>
+<body>
+<div id="skybase"></div>
+<div id="stars"></div>
+<div id="vignette"></div>
+<div id="skydim"></div>
+<header><h1 id="daytitle">Today</h1><div class="prog" id="prog"></div></header>
+<button class="gear" id="gear">⚙︎</button>
+<div id="chipwrap"></div>
+<div id="world"></div>
+
+<div class="creature hidden" id="cr-sirens"><img src="/lab/art/sirens-calm.png" alt=""></div>
+<div class="creature hidden" id="cr-serpent"><img src="/lab/art/serpent-calm.png" alt=""></div>
+<div class="creature hidden" id="cr-tentacle"><img src="/lab/art/tentacle.png" alt=""></div>
+<div class="creature hidden" id="cr-kraken"><img src="/lab/art/kraken-eyes.png" alt=""></div>
+
+<button id="chartbtn" title="Captain's Chart">🗺</button>
+<div id="chart"></div>
+<button class="addfab" id="addfab">+</button>
+<div class="sheet-veil" id="veil"></div>
+<div class="sheet" id="sheet"></div>
+<div class="fin" id="fin"><div><div class="big">⛵️</div><h2>Day, sailed.</h2><p id="finline"></p></div></div>
+
+<script>
+/* ================= params (review + demo aids) ================= */
+const Q = new URLSearchParams(location.search);
+const unit = parseInt(Q.get("unit")) || Math.max(560, Math.min(window.innerHeight, 900));
+const FAKE_HOUR = Q.get("at") !== null ? parseFloat(Q.get("at")) : null;
+function nowH() { const d = new Date(); return FAKE_HOUR ?? (d.getHours() + d.getMinutes() / 60); }
+
+/* ================= data ================= */
+const API = "https://api.todoist.com/api/v1";
+const token = () => localStorage.getItem("todoist_token") || "";
+let DEMO = Q.get("demo") === "1" || !token();
+let tasks = [];
+
+const REACHES = ["morning", "midday", "afternoon", "evening", "anytime"];
+const RLABEL = { morning: "Morning Reach", midday: "Midday Reach", afternoon: "Afternoon Reach", evening: "Evening Reach", anytime: "Open Water · Anytime" };
+const RICON = { morning: "🌅", midday: "☀️", afternoon: "🌇", evening: "🌙", anytime: "🌊" };
+function reachOfHour(h) { return h < 12 ? "morning" : h < 15 ? "midday" : h < 18 ? "afternoon" : "evening"; }
+function reachEnd(r) { return { morning: 12, midday: 15, afternoon: 18, evening: 24, anytime: 24 }[r]; }
+function currentReach() { return reachOfHour(nowH()); }
+
+function demoDay() {
+  const h = nowH();
+  const mk = (offMin) => { const d = new Date(); d.setHours(0,0,0,0); d.setMinutes(Math.round((h*60) + offMin)); return d; };
+  const iso = d => d.toISOString();
+  return [
+    { id: "d1", name: "Review the Fable sweep", sub: "the one that moves the week", focus: true, reachLabel: "morning" },
+    { id: "d2", name: "Team check-in call", timed: mk(-40), sub: "" },
+    { id: "d3", name: "Soccer practice pickup", timed: mk(25), family: true, sub: "Harbor fields" },
+    { id: "d4", name: "Walk — 30 easy minutes", reachLabel: "morning", sub: "no pace goal" },
+    { id: "d5", name: "Fold the laundry", reachLabel: "afternoon", sub: "" },
+    { id: "d6", name: "Fix the door catch", reachLabel: "afternoon", sub: "the bedroom one" },
+    { id: "d7", name: "Reply in the Lily group", sub: "" },
+    { id: "d8", name: "Read 20 pages", reachLabel: "evening", sub: "wind-down, not work" },
+    { id: "d9", name: "Soccer camp signup", blocked: true, blockedWhy: "waiting on: sports physical" },
+  ].map(t => ({ done: false, labels: [], ...t }));
+}
+
+async function api(method, path, body) {
+  const r = await fetch(`${API}/${path}`, {
+    method, headers: { Authorization: `Bearer ${token()}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401 || r.status === 403) throw new Error("auth");
+  if (!r.ok) throw new Error("api " + r.status);
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+function mapTask(t) {
+  const desc = t.description || "";
+  const labels = t.labels || [];
+  const blocked = labels.includes("blocked") || /^blocked_on:/i.test(desc);
+  const why = (desc.match(/blocked_on:\s*([^\n.]*)/i) || [])[1];
+  const due = t.due || {};
+  let timed = null;
+  if (due.datetime) { const d = new Date(due.datetime); if (!isNaN(d)) timed = d; }
+  const dueDate = due.date ? due.date.slice(0, 10) : null;
+  const n = t.content.toLowerCase();
+  const family = /soccer|pickup|drop.?off|school|kid|daughter|practice|carpool|family/.test(n) || labels.includes("family");
+  return {
+    id: t.id, name: t.content, labels,
+    sub: !blocked && desc && !/^blocked_on:/i.test(desc) ? desc.split("\n")[0].slice(0, 70) : "",
+    focus: t.priority === 4,
+    overdueSince: dueDate && dueDate < todayISO() ? dueDate.slice(5) : null,
+    blocked, blockedWhy: why ? "waiting on: " + why.trim() : (blocked ? "blocked" : ""),
+    timed, family,
+    reachLabel: REACHES.find(r => labels.includes(r)) || null,
+    done: false,
+  };
+}
+async function loadTasks() {
+  if (DEMO) { tasks = demoDay(); return; }
+  const d = await api("GET", "tasks/filter?query=" + encodeURIComponent("overdue | today"));
+  tasks = (d.results || []).map(mapTask);
+}
+
+/* reach resolution + drift */
+function baseReach(t) {
+  if (t.timed) return reachOfHour(t.timed.getHours() + t.timed.getMinutes() / 60);
+  return t.reachLabel || "anytime";
+}
+function effectiveReach(t) {
+  const r = baseReach(t);
+  if (t.done || t.timed || r === "anytime") return r;
+  // soft task whose reach has passed drifts to the current reach
+  if (reachEnd(r) <= nowH()) return currentReach();
+  return r;
+}
+function drifted(t) { return !t.done && !t.timed && baseReach(t) !== "anytime" && effectiveReach(t) !== baseReach(t); }
+function active() { return tasks.filter(t => !t.blocked); }
+function blockedList() { return tasks.filter(t => t.blocked); }
+function lateTimedCount() {
+  const now = nowH();
+  return active().filter(t => t.timed && !t.done &&
+    (t.timed.getHours() + t.timed.getMinutes() / 60) < now).length;
+}
+function towTask() {
+  const now = nowH();
+  return active().find(t => t.family && t.timed && !t.done &&
+    Math.abs((t.timed.getHours() + t.timed.getMinutes() / 60) - now) <= 1);
+}
+
+/* art mapping */
+function artFor(t) {
+  const n = t.name.toLowerCase();
+  if (t.focus) return "lighthouse";
+  if (t.family) return "dinghy-moored";
+  if (/walk|run|hike|exercise|gym|miles/.test(n)) return "trailsign";
+  if (/read|book|pages|wind.?down/.test(n)) return "campfire";
+  if (/write|writ|draft|chapter|words|edit|publish|sweep|review/.test(n)) return "desk";
+  if (/call|phone|dial/.test(n)) return "tincan";
+  if (/reply|message|email|text|group|inbox/.test(n)) return "mailbox";
+  if (/laundry|dish|clean|wash|organize|declutter|fold/.test(n)) return "clothesline";
+  if (/fix|repair|install|drill|caulk|filter|drano|mount/.test(n)) return "toolbox";
+  if (/relax|beach|picnic|date|movie|dinner out|hang/.test(n)) return "chairs";
+  if (/sign.?up|pay|buy|order|renew|schedule|errand|store|shop/.test(n)) return "flag";
+  return "lantern";
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+function fmtT(d) { let h = d.getHours(), m = d.getMinutes(); const am = h < 12; h = h % 12 || 12; return h + (m ? ":" + String(m).padStart(2,"0") : "") + (am ? "am" : "pm"); }
+
+/* ================= layout + render ================= */
+const VW = () => document.documentElement.clientWidth;
+const WAYS = ["steady water", "the fog thins ahead", "a good stretch", "wind at your back", "harbor lights, eventually"];
+let L = null;
+
+function orderIslands() {
+  const act = active();
+  const groups = {};
+  REACHES.forEach(r => groups[r] = []);
+  act.forEach(t => groups[effectiveReach(t)].push(t));
+  REACHES.forEach(r => groups[r].sort((a, b) => {
+    if (a.timed && b.timed) return a.timed - b.timed;
+    if (a.timed) return -1;
+    if (b.timed) return 1;
+    return 0;
+  }));
+  return groups;
+}
+
+function layout() {
+  const w = VW();
+  const groups = orderIslands();
+  const homeH = unit * .5, isleH = unit * .72, bandH = 64, harborH = unit * .92;
+  let y = homeH, points = [{ x: w * .5, y: homeH * .55 }], items = [], bands = [];
+  let idx = 0;
+  REACHES.forEach(r => {
+    const empty = groups[r].length === 0;
+    const past = r !== "anytime" && reachEnd(r) <= nowH();
+    if (empty && (past || r === "anytime")) return;   // collapse empty past reaches + empty anytime
+    bands.push({ r, top: y, empty });
+    y += bandH;
+    groups[r].forEach(t => {
+      const lean = idx % 2 === 0 ? .36 : .64;
+      const cy = y + isleH * .44;
+      points.push({ x: w * lean, y: cy });
+      items.push({ t, top: y, cy, cx: w * lean, idx });
+      y += isleH; idx++;
+    });
+  });
+  const harborTop = y;
+  points.push({ x: w * .5, y: harborTop + harborH * .4 });
+  L = { w, H: harborTop + harborH, points, items, bands, homeH, isleH, harborTop, harborH, groups };
+}
+
+function routeD() {
+  const p = L.points;
+  let d = `M ${p[0].x} ${p[0].y}`;
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i-1], b = p[i], my = (a.y + b.y) / 2;
+    d += ` C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y}`;
+  }
+  return d;
+}
+function scatter(n, fn) { let s = ""; for (let i = 0; i < n; i++) s += fn(i); return s; }
+
+function render(fade) {
+  layout();
+  const world = document.getElementById("world");
+  const { w, H, items, bands, homeH, harborTop, harborH } = L;
+  world.style.height = H + "px";
+
+  const stars = document.getElementById("stars");
+  if (!stars.hasChildNodes()) {
+    stars.innerHTML = scatter(90, i => {
+      const s = .8 + (i % 4) * .6;
+      return `<div class="star ${i % 5 === 0 ? "warm" : ""} ${i % 3 === 0 ? "tw" : ""}" style="left:${(i * 61) % 100}%;top:${(i * 37) % 100}%;width:${s}px;height:${s}px;opacity:${.1 + (i % 5) * .09};animation-delay:${(i % 7) * .6}s"></div>`;
+    });
+  }
+
+  let h = "";
+  // home
+  const hs = Math.min(w * .5, 240);
+  h += `<div class="island done home-isle" style="top:0;height:${homeH}px">
+    <div class="isle-art" style="left:${w/2 - hs/2}px;top:${homeH*.55 - hs*.62}px;width:${hs}px;height:${hs}px"><img src="/lab/art/home.png" alt=""></div>
+    <div class="titlecard" style="top:${homeH*.55 + hs*.3}px"><div class="kicker">home · the day begins</div></div>
+    <div class="reflection" style="top:${homeH*.55 + hs*.33}px"></div></div>`;
+
+  // reach bands
+  const cur = currentReach();
+  bands.forEach(b => {
+    h += `<div class="reachband ${b.r === cur ? "current" : ""}" style="top:${b.top}px;height:64px">
+      <div class="rlabel">${RICON[b.r]} ${RLABEL[b.r]}</div></div>`;
+  });
+
+  // islands
+  const nowReach = currentReach();
+  items.forEach(({ t, top, cy, cx, idx }) => {
+    const size = Math.min(w * (t.focus ? .68 : .58), t.focus ? 310 : 265);
+    const state = t.done ? "done" : "foggy";
+    const isDrift = drifted(t);
+    const timeTxt = t.timed ? fmtT(t.timed) : null;
+    const late = t.timed && !t.done && (t.timed.getHours() + t.timed.getMinutes()/60) < nowH();
+    const subBits = [];
+    if (timeTxt) subBits.push(`<span class="sub ${late ? "late" : ""}" style="display:inline">${late ? "⚓ " : "🕐 "}${timeTxt}${late ? " · running late" : ""}</span>`);
+    else if (t.sub) subBits.push(esc(t.sub));
+    if (t.overdueSince) subBits.push(`<span class="late" style="display:inline">since ${t.overdueSince}</span>`);
+    h += `<div class="island ${state}" data-id="${t.id}" style="top:${top}px;height:${L.isleH}px">
+      <div class="fogbank" style="left:${cx - size*.75}px;top:${L.isleH*.44 - size*.7}px;width:${size*1.5}px;height:${size*1.4}px"></div>
+      ${isDrift ? `<svg class="driftsvg" width="${w}" height="${L.isleH}" viewBox="0 0 ${w} ${L.isleH}" style="position:absolute;inset:0;z-index:1;pointer-events:none">
+        <path class="drift-trail" d="M ${cx < w/2 ? w*.8 : w*.2} ${L.isleH*.05} C ${cx < w/2 ? w*.6 : w*.4} ${L.isleH*.2}, ${cx} ${L.isleH*.3}, ${cx} ${L.isleH*.44 - size*.3}"/></svg>` : ""}
+      <div class="isle-art" data-id="${t.id}" style="left:${cx - size/2}px;top:${L.isleH*.44 - size*.56}px;width:${size}px;height:${size}px">
+        <img src="/lab/art/${artFor(t)}.png" alt="" loading="lazy"></div>
+      <div class="reflection" style="top:${L.isleH*.44 + size*.36}px"></div>
+      <div class="titlecard ${t.focus ? "focus" : ""}" style="top:${L.isleH*.44 + size*.4}px">
+        <div class="kicker">${t.focus ? "★ the focus" : (t.timed ? "⚓ fixed landmark" : "stop " + (idx + 1))}</div>
+        <div class="name" data-id="${t.id}">${esc(t.name)}</div>
+        ${subBits.length ? `<div class="sub">${subBits.join(" · ")}</div>` : ""}
+        ${isDrift ? `<div class="sub drift">· drifted with the tide ·</div>` : ""}
+      </div>
+      ${scatter(2, k => `<div class="shimmer" style="left:${(k * 37 + (idx % 2 ? 10 : 55)) % 84}%;top:${L.isleH * (.85 + k * .05)}px;width:${22 + k * 12}px;animation-delay:${k * 1.1 + idx * .4}s"></div>`)}
+      ${idx % 3 === 1 ? `<div class="firefly" style="left:${cx + size * .48}px;top:${L.isleH * .28}px;animation-delay:${idx * .7}s"></div>` : ""}
+    </div>`;
+    if (idx % 2 === 1 && idx < items.length - 1)
+      h += `<div class="waymark" style="top:${top + L.isleH - 12}px">· ${WAYS[(idx >> 1) % WAYS.length]} ·</div>`;
+  });
+
+  // blocked buoys — offshore in the open water beside home, stacked gently
+  blockedList().forEach((t, i) => {
+    const top = homeH * .32 + i * 180;
+    const side = i % 2 === 0;
+    h += `<div class="buoy" data-id="${t.id}" style="top:${top}px;${side ? "right:8px" : "left:8px"}">
+      <img src="/lab/art/buoy.png" alt="">
+      <div class="blabel">${esc(t.name)}</div><div class="bwhy">${esc(t.blockedWhy)}</div></div>`;
+  });
+
+  // harbor
+  const hbs = Math.min(w * .74, 350);
+  const allDone = active().length > 0 && active().every(t => t.done);
+  h += `<div class="island ${allDone ? "done" : "foggy"}" id="harborisle" style="top:${harborTop}px;height:${harborH}px">
+    <div class="fogbank" style="left:${w/2 - hbs*.75}px;top:${harborH*.4 - hbs*.7}px;width:${hbs*1.5}px;height:${hbs*1.4}px"></div>
+    <div class="isle-art" style="left:${w/2 - hbs/2}px;top:${harborH*.4 - hbs*.56}px;width:${hbs}px;height:${hbs}px">
+      <img src="/lab/art/dock.png" alt="" loading="lazy"></div>
+    <div class="reflection" style="top:${harborH*.4 + hbs*.34}px;height:32px"></div>
+    <div class="titlecard" style="top:${harborH*.4 + hbs*.38}px"><div class="kicker">the harbor · day's end</div></div>
+    ${scatter(4, k => `<div class="shimmer" style="left:${(k * 26 + 12) % 82}%;top:${harborH * (.76 + k * .05)}px;width:${26 + k * 10}px;animation-delay:${k * .9}s"></div>`)}
+  </div>`;
+
+  // route + boat + tow
+  h += `<svg id="route" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <path class="route-base" d="${routeD()}"/><path class="route-lit" id="lit" d="${routeD()}"/>
+    <path id="towrope" d="" stroke="#c9a06a" stroke-width="2" fill="none" stroke-linecap="round" opacity=".8"/>
+  </svg>
+  <div id="boatwrap"><div id="boat"><img src="/lab/art/boat.png" alt=""></div>
+  <div id="dinghy"><img src="/lab/art/dinghy-tow.png" alt=""></div></div>`;
+
+  const doRender = () => { world.innerHTML = h; wire(); world.style.opacity = 1; };
+  if (fade) { world.style.transition = "opacity .35s"; world.style.opacity = 0; setTimeout(doRender, 360); }
+  else doRender();
+
+  const doneN = active().filter(t => t.done).length;
+  document.getElementById("prog").textContent = `${doneN} of ${active().length} islands`;
+  document.getElementById("chipwrap").innerHTML = DEMO ? `<div class="chip">demo day — ⚙︎ to connect Todoist</div>` : "";
+  const hh = nowH();
+  document.getElementById("daytitle").textContent = hh < 10 ? "Morning harbor" : hh >= 18.5 ? "Evening water" : "Today";
+  updateCreatures();
+  updateTow();
+}
+
+/* ================= route mechanics ================= */
+let lit, RL, anchorLen = [];
+function wire() {
+  lit = document.getElementById("lit");
+  RL = lit.getTotalLength();
+  lit.style.strokeDasharray = RL;
+  anchorLen = [];
+  const samples = 800;
+  let best = L.points.map(() => ({ d: 1e9, len: 0 }));
+  for (let s = 0; s <= samples; s++) {
+    const len = (RL * s) / samples, p = lit.getPointAtLength(len);
+    L.points.forEach((q, i) => { const d = Math.hypot(p.x - q.x, p.y - q.y); if (d < best[i].d) best[i] = { d, len }; });
+  }
+  best.forEach(b => anchorLen.push(b.len));
+  const f = frontierLen();
+  lit.style.transition = "none";
+  lit.style.strokeDashoffset = RL - f;
+  requestAnimationFrame(() => { lit.style.transition = ""; });
+  placeBoat(f);
+  markFog();
+  document.querySelectorAll(".isle-art[data-id], .titlecard .name[data-id], .buoy[data-id]").forEach(el =>
+    el.addEventListener("click", () => openSheet(el.dataset.id)));
+}
+function markFog() {
+  const undone = L.items.filter(({ t }) => !t.done).map(({ t }) => String(t.id));
+  const next3 = undone.slice(0, 3);
+  document.querySelectorAll(".island[data-id]").forEach(el => {
+    const id = el.dataset.id;
+    el.classList.remove("next", "soon");
+    const t = tasks.find(x => String(x.id) === id);
+    if (t && t.done) { el.classList.remove("foggy"); el.classList.add("done"); return; }
+    if (id === next3[0]) { el.classList.remove("foggy"); el.classList.add("next"); }
+    else if (next3.includes(id)) { el.classList.remove("foggy"); el.classList.add("soon"); }
+    else el.classList.add("foggy");
+  });
+  const hb = document.getElementById("harborisle");
+  if (hb && active().every(t => t.done) && active().length) { hb.classList.remove("foggy"); hb.classList.add("done"); }
+}
+function frontierLen() {
+  const doneIdx = L.items.map(({ t }, i) => t.done ? i : -1).filter(i => i >= 0);
+  return doneIdx.length ? anchorLen[Math.max(...doneIdx) + 1] : anchorLen[0];
+}
+let boatLen = null;
+function placeBoat(len) {
+  const p = lit.getPointAtLength(Math.max(0, Math.min(len, RL - 1)));
+  const bw = document.getElementById("boatwrap");
+  bw.style.left = p.x + "px"; bw.style.top = p.y + "px";
+  boatLen = len;
+  const rope = document.getElementById("towrope");
+  if (rope && document.body.classList.contains("towing")) {
+    const back = lit.getPointAtLength(Math.max(0, len - 64));
+    rope.setAttribute("d", `M ${p.x} ${p.y - 6} Q ${(p.x + back.x)/2} ${(p.y + back.y)/2 + 14}, ${back.x + 26} ${back.y + 2}`);
+    const dg = document.getElementById("dinghy");
+    dg.style.left = (back.x - p.x + 26 - 30) + "px";
+    dg.style.top = (back.y - p.y - 30) + "px";
+  }
+}
+function sailTo(target, follow) {
+  const from = boatLen ?? frontierLen();
+  const dist = target - from, dur = Math.max(1300, Math.abs(dist) * 2.1), t0 = performance.now();
+  (function step(now) {
+    const k = Math.min(1, (now - t0) / dur);
+    const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    placeBoat(from + dist * e);
+    if (follow) { const p = lit.getPointAtLength(Math.max(0, Math.min(from + dist * e, RL - 1))); window.scrollTo(0, p.y - unit * .45); }
+    if (k < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+function updateTow() {
+  document.body.classList.toggle("towing", !!towTask());
+  if (boatLen !== null && lit) placeBoat(boatLen);
+}
+
+/* ================= creatures ================= */
+let lastDial = -1;
+function updateCreatures() {
+  const dial = Math.min(lateTimedCount(), 4);
+  const S = document.getElementById("cr-serpent"), Si = document.getElementById("cr-sirens"),
+        T = document.getElementById("cr-tentacle"), K = document.getElementById("cr-kraken");
+  const retreatIf = (el, show) => {
+    if (show) { el.classList.remove("hidden", "retreat"); }
+    else if (!el.classList.contains("hidden")) { el.classList.add("retreat"); setTimeout(() => { el.classList.add("hidden"); el.classList.remove("retreat"); }, 1900); }
+  };
+  // serpent always resident; face by dial
+  S.classList.remove("hidden");
+  S.className = "creature " + (dial >= 3 ? "mood-close" : dial >= 1 ? "mood-sly" : "");
+  S.id = "cr-serpent";
+  S.querySelector("img").src = "/lab/art/" + (dial >= 3 ? "serpent-close" : dial >= 1 ? "serpent-sly" : "serpent-calm") + ".png";
+  // sirens resident calm; hungry at 2+
+  Si.classList.remove("hidden");
+  Si.className = "creature " + (dial >= 2 ? "mood-hungry" : "");
+  Si.id = "cr-sirens";
+  Si.querySelector("img").src = "/lab/art/" + (dial >= 2 ? "sirens-hungry" : "sirens-calm") + ".png";
+  retreatIf(T, dial >= 2);
+  if (dial >= 3) {
+    K.classList.remove("hidden");
+    K.querySelector("img").src = "/lab/art/" + (dial >= 4 ? "kraken-full" : "kraken-eyes") + ".png";
+  } else retreatIf(K, false);
+  document.body.classList.toggle("kraken-up", dial >= 4);
+  if (lastDial > dial && lastDial >= 0) {
+    toast(lastDial >= 4 ? "⚔️ The kraken sinks back — nice save" : "🌊 The sea backs off");
+  }
+  lastDial = dial;
+}
+
+/* ================= sheet ================= */
+const sheet = document.getElementById("sheet"), veil = document.getElementById("veil");
+function reachPickHtml(sel) {
+  return `<div class="reachpick">` + REACHES.map(r =>
+    `<button data-r="${r}" class="${sel === r ? "on" : ""}">${RICON[r]}<br>${r}</button>`).join("") + `</div>`;
+}
+function openSheet(id) {
+  const t = tasks.find(x => String(x.id) === String(id));
+  if (!t || t.done) return;
+  const meta = t.timed ? `⚓ fixed at ${fmtT(t.timed)}` : `${RICON[effectiveReach(t)]} ${effectiveReach(t)}${drifted(t) ? " · drifted" : ""}`;
+  sheet.innerHTML = `<div class="t">${esc(t.name)}</div>
+    <div class="s">${esc(t.blocked ? t.blockedWhy : (t.sub || meta))}</div>
+    <div class="acts">
+      ${t.blocked
+        ? `<button class="primary" data-a="unblock">⚓️ Unblock — back on the route</button>`
+        : `<button class="primary" data-a="done">✓ Done — set sail</button>
+           <button data-a="time">🕐 Set a time</button>
+           <button data-a="reach">${RICON[effectiveReach(t)]} Move reach</button>
+           <button data-a="tomorrow">📅 Tomorrow</button>
+           <button data-a="block">⚓️ Blocked…</button>`}
+      <button data-a="notoday" class="quiet">🌫 Not today</button>
+      <button data-a="close" class="quiet">back</button>
+    </div>`;
+  sheet.querySelectorAll("button").forEach(b => b.addEventListener("click", () => act(t, b.dataset.a)));
+  document.body.classList.add("sheet-open");
+}
+function closeSheet() { document.body.classList.remove("sheet-open"); }
+veil.addEventListener("click", closeSheet);
+
+async function setReach(t, r) {
+  const newLabels = t.labels.filter(l => !REACHES.includes(l));
+  if (r !== "anytime") newLabels.push(r);
+  t.labels = newLabels; t.reachLabel = r === "anytime" ? null : r;
+  if (!DEMO) await api("POST", `tasks/${t.id}`, { labels: newLabels });
+}
+
+async function act(t, a) {
+  if (a === "close") return closeSheet();
+  try {
+    if (a === "done") {
+      closeSheet();
+      t.done = true;
+      if (!DEMO) await api("POST", `tasks/${t.id}/close`);
+      const isle = document.querySelector(`.island[data-id="${t.id}"]`);
+      if (isle) { isle.classList.remove("foggy", "next", "soon"); isle.classList.add("done"); }
+      const f = frontierLen();
+      lit.style.strokeDashoffset = RL - f;
+      sailTo(f, true);
+      markFog(); updateCreatures(); updateTow();
+      document.getElementById("prog").textContent =
+        `${active().filter(x => x.done).length} of ${active().length} islands`;
+      if (active().every(x => x.done)) setTimeout(finish, 1600);
+    } else if (a === "time") {
+      const v = prompt("What time? (e.g. 3pm, 15:30)");
+      if (v && v.trim()) {
+        closeSheet();
+        if (!DEMO) await api("POST", `tasks/${t.id}`, { due_string: "today " + v.trim() });
+        else { const d = new Date(); const m = v.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i); if (m) { let hh = +m[1]; if (/pm/i.test(m[3]) && hh < 12) hh += 12; d.setHours(hh, +(m[2] || 0), 0, 0); t.timed = d; } }
+        toast("⚓ Pinned as a landmark");
+        boatLen = null; if (!DEMO) await loadTasks(); render(true);
+      }
+    } else if (a === "reach") {
+      sheet.innerHTML = `<div class="t">${esc(t.name)}</div><div class="s">which waters?</div>
+        ${reachPickHtml(effectiveReach(t))}
+        <div class="acts"><button class="quiet" data-a="close">back</button></div>`;
+      sheet.querySelectorAll(".reachpick button").forEach(b => b.addEventListener("click", async () => {
+        await setReach(t, b.dataset.r); closeSheet();
+        toast(`${RICON[b.dataset.r]} Moved to ${b.dataset.r}`);
+        boatLen = null; render(true);
+      }));
+      sheet.querySelector('[data-a="close"]').addEventListener("click", closeSheet);
+      return;
+    } else if (a === "tomorrow") {
+      closeSheet();
+      if (!DEMO) await api("POST", `tasks/${t.id}`, { due_string: "tomorrow" });
+      tasks = tasks.filter(x => x.id !== t.id);
+      toast("📅 Sails for tomorrow instead");
+      boatLen = null; render(true);
+    } else if (a === "notoday") {
+      closeSheet();
+      if (!DEMO) await api("POST", `tasks/${t.id}`, { due_string: "no due date" });
+      tasks = tasks.filter(x => x.id !== t.id);
+      toast("🌫 Off the route — resting in the inbox");
+      boatLen = null; render(true);
+    } else if (a === "block") {
+      const why = prompt("Waiting on what?") || "";
+      closeSheet();
+      if (why.trim()) {
+        t.blocked = true; t.blockedWhy = "waiting on: " + why.trim();
+        if (!DEMO) await api("POST", `tasks/${t.id}`, { description: "blocked_on: " + why.trim() });
+        toast("⚓ Anchored offshore");
+        boatLen = null; render(true);
+      }
+    } else if (a === "unblock") {
+      closeSheet();
+      t.blocked = false; t.blockedWhy = "";
+      if (!DEMO) await api("POST", `tasks/${t.id}`, { description: "" });
+      toast("Back on the route");
+      boatLen = null; render(true);
+    }
+  } catch (e) { toast("Couldn't save that — try again"); }
+}
+
+/* ================= chart ================= */
+const chart = document.getElementById("chart");
+document.getElementById("chartbtn").addEventListener("click", () => { buildChart(); document.body.classList.add("chart-open"); });
+function chartClose() { document.body.classList.remove("chart-open"); }
+
+function buildChart() {
+  const hh = nowH();
+  const mode = hh < 10 ? "morning" : hh >= 18.5 ? "evening" : "day";
+  const head = mode === "morning" ? ["Morning harbor", "coffee over the chart — set the day, then sail"]
+    : mode === "evening" ? ["Land the boat", "the day is what it was — set tomorrow gently"]
+    : ["The Captain's Chart", "every island, laid flat — rearrange freely"];
+  const groups = orderIslands();
+  const lapsed = active().filter(t => drifted(t) && !t.done);
+  let h = `<div class="ch-head"><h2>🗺 ${head[0]}</h2><button class="ch-close" id="chx">×</button></div>
+    <div class="ch-sub">${head[1]}</div>`;
+  if (lapsed.length) h += `<button class="ch-tide" id="tidebtn">🌊 Tide changed — redraw the route (${lapsed.length} drifting)</button>`;
+  REACHES.forEach(r => {
+    const list = groups[r];
+    if (!list.length) return;
+    h += `<div class="ch-reach"><h3>${RICON[r]} ${RLABEL[r]}</h3>`;
+    list.forEach(t => {
+      const meta = [t.timed ? "⚓ " + fmtT(t.timed) : null, drifted(t) ? "drifted" : null, t.sub || null].filter(Boolean).join(" · ");
+      h += `<div class="ch-row ${t.done ? "done" : ""}" data-id="${t.id}">
+        <img src="/lab/art/${artFor(t)}.png" alt="">
+        <div class="n">${esc(t.name)}${meta ? `<span class="meta">${esc(meta)}</span>` : ""}</div>
+        <div class="ract">
+          ${t.done ? "" : `<button data-a="done" title="done">✓</button>
+          <button data-a="reach" title="move">${RICON[effectiveReach(t)]}</button>
+          <button data-a="time" title="set time">🕐</button>
+          ${mode === "evening" ? `<button data-a="shrink" title="shrink it">✂️</button>` : ""}
+          <button data-a="tomorrow" title="tomorrow">📅</button>`}
+        </div></div>`;
+    });
+    h += `</div>`;
+  });
+  const bl = blockedList();
+  if (bl.length) {
+    h += `<div class="ch-reach"><h3>⚓️ Anchored offshore</h3>`;
+    bl.forEach(t => {
+      h += `<div class="ch-row" data-id="${t.id}"><img src="/lab/art/buoy.png" alt="">
+        <div class="n">${esc(t.name)}<span class="meta">${esc(t.blockedWhy)}</span></div>
+        <div class="ract"><button data-a="unblock" title="unblock">⛵️</button></div></div>`;
+    });
+    h += `</div>`;
+  }
+  const doneN = active().filter(t => t.done).length;
+  h += `<div class="ch-sub" style="margin-top:8px">${doneN} sailed · ${active().length - doneN} on the water${mode === "evening" ? " · goodnight, captain 🌙" : ""}</div>`;
+  chart.innerHTML = h;
+  document.getElementById("chx").addEventListener("click", chartClose);
+  const tb = document.getElementById("tidebtn");
+  if (tb) tb.addEventListener("click", tideChanged);
+  chart.querySelectorAll(".ch-row .ract button").forEach(b => {
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const row = b.closest(".ch-row"), id = row.dataset.id;
+      const t = tasks.find(x => String(x.id) === String(id));
+      if (!t) return;
+      const a = b.dataset.a;
+      if (a === "done") { await act(t, "done"); buildChart(); }
+      else if (a === "tomorrow") { await act(t, "tomorrow"); buildChart(); }
+      else if (a === "unblock") { await act(t, "unblock"); buildChart(); }
+      else if (a === "time") { await act(t, "time"); buildChart(); }
+      else if (a === "shrink") {
+        const v = prompt("Shrink it to what?", t.name);
+        if (v && v.trim() && v.trim() !== t.name) {
+          t.name = v.trim();
+          if (!DEMO) await api("POST", `tasks/${t.id}`, { content: v.trim() });
+          toast("✂️ Smaller island, same sea");
+          render(true); buildChart();
+        }
+      }
+      else if (a === "reach") {
+        const curIdx = REACHES.indexOf(effectiveReach(t));
+        const next = REACHES[(curIdx + 1) % REACHES.length];
+        await setReach(t, next);
+        toast(`${RICON[next]} → ${next}`);
+        render(true); buildChart();
+      }
+    });
+  });
+}
+async function tideChanged() {
+  const lapsed = active().filter(t => drifted(t) && !t.done);
+  const cur = currentReach();
+  for (const t of lapsed) await setReach(t, cur);
+  toast("🌊 Route redrawn — tide changed, no notes taken");
+  boatLen = null; render(true); buildChart();
+}
+
+/* ================= add / settings / boot ================= */
+document.getElementById("addfab").addEventListener("click", () => {
+  let selReach = "anytime";
+  sheet.innerHTML = `<div class="t">New island</div><div class="s">rises on today's route</div>
+    <input id="newtask" type="text" placeholder="What needs doing?" autocomplete="off">
+    ${reachPickHtml("anytime")}
+    <div class="acts"><button class="primary" id="addgo">Add to the route</button>
+    <button class="quiet" id="addcancel">back</button></div>`;
+  document.body.classList.add("sheet-open");
+  const inp = document.getElementById("newtask");
+  setTimeout(() => inp.focus(), 350);
+  sheet.querySelectorAll(".reachpick button").forEach(b => b.addEventListener("click", () => {
+    sheet.querySelectorAll(".reachpick button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); selReach = b.dataset.r;
+  }));
+  document.getElementById("addcancel").addEventListener("click", closeSheet);
+  document.getElementById("addgo").addEventListener("click", async () => {
+    const text = inp.value.trim(); if (!text) return;
+    closeSheet();
+    try {
+      if (DEMO) tasks.push({ id: "d" + Math.random(), name: text, sub: "", done: false, labels: selReach === "anytime" ? [] : [selReach], reachLabel: selReach === "anytime" ? null : selReach });
+      else {
+        const created = await api("POST", "tasks", { content: text, due_string: "today", labels: selReach === "anytime" ? [] : [selReach] });
+        tasks.push(mapTask(created));
+      }
+      toast("🏝 An island rose from the sea");
+      boatLen = null; render(true);
+    } catch { toast("Couldn't add — try again"); }
+  });
+});
+document.getElementById("gear").addEventListener("click", () => {
+  sheet.innerHTML = `<div class="t">Connect Todoist</div>
+    <div class="s">Paste your API token — it stays on this device only.</div>
+    <input id="tok" type="password" placeholder="Todoist API token">
+    <div class="acts"><button class="primary" id="tokgo">Connect</button>
+    <button class="quiet" id="tokdemo">use demo day</button></div>`;
+  document.body.classList.add("sheet-open");
+  document.getElementById("tokgo").addEventListener("click", () => {
+    localStorage.setItem("todoist_token", document.getElementById("tok").value.trim());
+    DEMO = !token(); closeSheet(); boot();
+  });
+  document.getElementById("tokdemo").addEventListener("click", () => {
+    localStorage.removeItem("todoist_token"); DEMO = true; closeSheet(); boot();
+  });
+});
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 3400);
+}
+function finish() {
+  document.getElementById("finline").textContent = "Every island lit. The lighthouse brought you home.";
+  document.getElementById("fin").classList.add("show");
+  for (let i = 0; i < 36; i++) {
+    const c = document.createElement("div"); c.className = "confetti";
+    c.textContent = ["✨","🎉","⭐️","🔸"][i % 4];
+    c.style.left = Math.random() * 100 + "vw";
+    c.style.animationDuration = 2.2 + Math.random() * 2 + "s";
+    c.style.animationDelay = Math.random() * .8 + "s";
+    document.body.appendChild(c);
+  }
+}
+document.getElementById("fin").addEventListener("click", () => document.getElementById("fin").classList.remove("show"));
+
+let lastY = 0;
+addEventListener("scroll", () => {
+  const y = scrollY;
+  document.querySelector("header").classList.toggle("hidden", y > lastY && y > 120);
+  lastY = y;
+  document.getElementById("stars").style.transform = `translateY(${y * .22}px)`;
+}, { passive: true });
+addEventListener("resize", () => { boatLen = null; render(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !DEMO) boot(); });
+
+async function boot() {
+  try { await loadTasks(); }
+  catch (e) {
+    DEMO = true;
+    toast(e.message === "auth" ? "Token didn't work — demo day for now" : "Couldn't reach Todoist — demo day");
+    await loadTasks();
+  }
+  boatLen = null;
+  render();
+  if (Q.get("chart") === "1") { buildChart(); document.body.classList.add("chart-open"); }
+}
+boot();
+</script>
+</body>
+</html>
