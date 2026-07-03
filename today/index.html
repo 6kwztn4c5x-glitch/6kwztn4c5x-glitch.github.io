@@ -231,6 +231,7 @@
 <div class="creature hidden" id="cr-kraken"><img src="/lab/art/kraken-eyes.png" alt=""></div>
 
 <button id="chartbtn" title="Captain's Chart">🗺</button>
+<button id="seabtn" title="test the sea" style="display:none; position:fixed; left:18px; bottom:calc(88px + env(safe-area-inset-bottom)); z-index:45; width:54px; height:54px; border-radius:50%; border:1px solid rgba(122,220,255,.35); background:rgba(20,26,51,.92); color:#7adcff; font-size:24px; cursor:pointer; box-shadow:0 8px 26px rgba(0,0,0,.45);">🐙</button>
 <div id="chart"></div>
 <button class="addfab" id="addfab">+</button>
 <div class="sheet-veil" id="veil"></div>
@@ -242,6 +243,7 @@
 const Q = new URLSearchParams(location.search);
 const unit = parseInt(Q.get("unit")) || Math.max(560, Math.min(window.innerHeight, 900));
 const FAKE_HOUR = Q.get("at") !== null ? parseFloat(Q.get("at")) : null;
+let dialOverride = Q.get("dial") !== null ? parseInt(Q.get("dial")) : null;
 function nowH() { const d = new Date(); return FAKE_HOUR ?? (d.getHours() + d.getMinutes() / 60); }
 
 /* ================= data ================= */
@@ -329,6 +331,7 @@ function drifted(t) { return !t.done && !t.timed && baseReach(t) !== "anytime" &
 function active() { return tasks.filter(t => !t.blocked); }
 function blockedList() { return tasks.filter(t => t.blocked); }
 function lateTimedCount() {
+  if (dialOverride !== null) return dialOverride;
   const now = nowH();
   return active().filter(t => t.timed && !t.done &&
     (t.timed.getHours() + t.timed.getMinutes() / 60) < now).length;
@@ -629,7 +632,18 @@ function reachPickHtml(sel) {
 }
 function openSheet(id) {
   const t = tasks.find(x => String(x.id) === String(id));
-  if (!t || t.done) return;
+  if (!t) return;
+  if (t.done) {
+    sheet.innerHTML = `<div class="t">${esc(t.name)}</div>
+      <div class="s">sailed · but the sea forgives misclicks</div>
+      <div class="acts">
+        <button class="primary" data-a="reopen">↩️ Reopen — back on the water</button>
+        <button data-a="close" class="quiet">back</button>
+      </div>`;
+    sheet.querySelectorAll("button").forEach(b => b.addEventListener("click", () => act(t, b.dataset.a)));
+    document.body.classList.add("sheet-open");
+    return;
+  }
   const meta = t.timed ? `⚓ fixed at ${fmtT(t.timed)}` : `${RICON[effectiveReach(t)]} ${effectiveReach(t)}${drifted(t) ? " · drifted" : ""}`;
   sheet.innerHTML = `<div class="t">${esc(t.name)}</div>
     <div class="s">${esc(t.blocked ? t.blockedWhy : (t.sub || meta))}</div>
@@ -660,7 +674,21 @@ async function setReach(t, r) {
 async function act(t, a) {
   if (a === "close") return closeSheet();
   try {
-    if (a === "done") {
+    if (a === "reopen") {
+      closeSheet();
+      t.done = false;
+      if (!DEMO) await api("POST", `tasks/${t.id}/reopen`);
+      toast("↩️ Back on the water");
+      const f = frontierLen();
+      lit.style.strokeDashoffset = RL - f;
+      placeBoat(f);
+      markFog(); updateCreatures(); updateTow();
+      const isle = document.querySelector(`.island[data-id="${t.id}"]`);
+      if (isle) isle.classList.remove("done");
+      markFog();
+      document.getElementById("prog").textContent =
+        `${active().filter(x => x.done).length} of ${active().length} islands`;
+    } else if (a === "done") {
       closeSheet();
       t.done = true;
       if (!DEMO) await api("POST", `tasks/${t.id}/close`);
@@ -750,7 +778,7 @@ function buildChart() {
         <img src="/lab/art/${artFor(t)}.png" alt="">
         <div class="n">${esc(t.name)}${meta ? `<span class="meta">${esc(meta)}</span>` : ""}</div>
         <div class="ract">
-          ${t.done ? "" : `<button data-a="done" title="done">✓</button>
+          ${t.done ? `<button data-a="reopen" title="reopen">↩️</button>` : `<button data-a="done" title="done">✓</button>
           <button data-a="reach" title="move">${RICON[effectiveReach(t)]}</button>
           <button data-a="time" title="set time">🕐</button>
           ${mode === "evening" ? `<button data-a="shrink" title="shrink it">✂️</button>` : ""}
@@ -783,6 +811,7 @@ function buildChart() {
       if (!t) return;
       const a = b.dataset.a;
       if (a === "done") { await act(t, "done"); buildChart(); }
+      else if (a === "reopen") { await act(t, "reopen"); buildChart(); }
       else if (a === "tomorrow") { await act(t, "tomorrow"); buildChart(); }
       else if (a === "unblock") { await act(t, "unblock"); buildChart(); }
       else if (a === "time") { await act(t, "time"); buildChart(); }
@@ -887,6 +916,19 @@ addEventListener("scroll", () => {
 addEventListener("resize", () => { boatLen = null; render(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && !DEMO) boot(); });
 
+const SEA_LINES = [
+  "🌊 Calm seas — everyone keeps a friendly distance",
+  "🐍 One behind — the scout drifts in to watch",
+  "🧜‍♀️ Two behind — the sirens surface, a tentacle crests",
+  "👀 Seriously behind — the kraken is watching",
+  "🦑 THE KRAKEN RISES — do one thing and bonk him",
+];
+document.getElementById("seabtn").addEventListener("click", () => {
+  dialOverride = ((dialOverride ?? lateTimedCount()) + 1) % 5;
+  updateCreatures();
+  toast(SEA_LINES[dialOverride]);
+});
+
 async function boot() {
   try { await loadTasks(); }
   catch (e) {
@@ -896,6 +938,7 @@ async function boot() {
   }
   boatLen = null;
   render();
+  document.getElementById("seabtn").style.display = DEMO ? "block" : "none";
   if (Q.get("chart") === "1") { buildChart(); document.body.classList.add("chart-open"); }
 }
 boot();
