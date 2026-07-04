@@ -11,7 +11,8 @@
 <title>The Voyage</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
-  html { background: #0a0e22; }
+  html { background: #0a0e22; overscroll-behavior-y: none; }
+  body { overscroll-behavior-y: none; }
   /* iOS: no save-image callouts, no text-selection fights — this is a world, not a webpage */
   body { -webkit-user-select: none; user-select: none; }
   img { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
@@ -1405,6 +1406,9 @@ function setShade(y, animate) {
     lip.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
+  // belt + braces: iOS pull-to-refresh must never win against the curtain
+  lip.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+  lip.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
   lip.addEventListener("pointermove", e => {
     if (startY === null) return;
     dy = e.clientY - startY;
