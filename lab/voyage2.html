@@ -34,21 +34,18 @@
     opacity: 0; transition: opacity 2s; }
   body.kraken-up #skydim { opacity: 1; }
 
-  /* ═══════════ weather changed — pull the cloud shade down over the whole day ═══════════ */
-  #cloudshade { position: fixed; left: 0; right: 0; top: 0; z-index: 41; touch-action: none;
-    height: 0; cursor: grab; }
+  /* ═══════════ weather changed — the storm curtain (his painting) descends over the whole scene ═══════════ */
   #shadeveil { position: fixed; left: 0; right: 0; top: 0; height: 100vh; z-index: 5; pointer-events: none;
-    background: linear-gradient(180deg, rgba(42,48,72,.94) 0%, rgba(30,34,56,.8) 70%, rgba(30,34,56,.75) 100%);
-    transform: translateY(-100%); transition: transform .6s cubic-bezier(.3,.8,.3,1); }
-  body.weatherday #shadeveil { transform: translateY(-16%); }
-  #shadelip { position: fixed; left: 0; right: 0; top: calc(-6px + env(safe-area-inset-top)); z-index: 42;
-    height: 46px; touch-action: none; cursor: grab; }
-  #shadelip svg { width: 100%; height: 100%; display: block; opacity: .8;
-    filter: drop-shadow(0 3px 10px rgba(6,9,20,.55)); }
-  body.weatherday #shadelip { top: calc(76vh + env(safe-area-inset-top)); }
-  #shadelip .liptext { position: absolute; top: 26px; left: 0; right: 0; text-align: center;
-    font-size: 9.5px; letter-spacing: .3em; text-transform: uppercase; color: #aeb6d8; opacity: 0; transition: opacity .3s; }
-  body.weatherday #shadelip .liptext { opacity: .85; top: 30px; }
+    background: linear-gradient(180deg, #04060e 0%, #070a18 78%, transparent 100%);
+    transition: transform .7s cubic-bezier(.3,.8,.3,1); will-change: transform; }
+  #shadeveil img.curtain { position: absolute; bottom: -8px; left: 0; width: 100%; display: block;
+    pointer-events: none; filter: drop-shadow(0 14px 30px rgba(3,5,12,.75)); }
+  #shadelip { position: fixed; left: 0; right: 0; top: 0; z-index: 42; height: 52px;
+    touch-action: none; cursor: grab; transition: top .7s cubic-bezier(.3,.8,.3,1); }
+  #shadelip .liptext { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center;
+    font-size: 9.5px; letter-spacing: .3em; text-transform: uppercase; color: #aeb6d8; opacity: 0;
+    transition: opacity .3s; text-shadow: 0 1px 8px rgba(6,9,20,.9); }
+  body.weatherday #shadelip .liptext { opacity: .85; }
   #weathernote { position: fixed; top: calc(96px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 42;
     text-align: center; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #aeb6d8;
     display: none; pointer-events: none; text-shadow: 0 1px 8px rgba(6,9,20,.8); }
@@ -313,11 +310,8 @@
 <div id="vignette"></div>
 <div id="skydim"></div>
 <header><h1 id="daytitle">The Voyage</h1><div class="prog" id="prog"></div></header>
-<div id="shadeveil"></div>
+<div id="shadeveil"><img class="curtain" src="art/stormcurtain.png" alt=""></div>
 <div id="shadelip" title="pull the weather down over the day">
-  <svg viewBox="0 0 390 46" preserveAspectRatio="none" fill="rgba(116,126,166,.34)" stroke="#aeb6d8" stroke-width="1.2">
-    <path d="M-4 -4 H394 V18 q-24 16 -52 10 q-22 14 -46 6 q-18 12 -40 5 q-24 12 -48 4 q-22 12 -44 5 q-26 12 -50 4 q-28 12 -54 3 q-30 10 -60 2 z"/>
-  </svg>
   <div class="liptext">pull up when skies clear</div>
 </div>
 <div id="weathernote">the weather turned · the sea stands down</div>
@@ -1391,35 +1385,35 @@ function toast(msg, opts) {
   setTimeout(() => el.remove(), opts && opts.undo ? 6000 : 3400);
 }
 
-/* ═══════ the shade: pull the whole sky down like closing a blind; push it back up to clear ═══════ */
+/* ═══════ the storm curtain: pull it down over the scene; push it back up when skies clear ═══════ */
+const PEEK = 36;   // resting sliver of cloud at the top of the sky
+function shadeBaseY() { return weatherChanged() ? -window.innerHeight * .14 : -window.innerHeight + PEEK; }
+function setShade(y, animate) {
+  const veil = document.getElementById("shadeveil"), lip = document.getElementById("shadelip");
+  veil.style.transition = animate ? "" : "none";
+  lip.style.transition = animate ? "" : "none";
+  veil.style.transform = `translateY(${y}px)`;
+  lip.style.top = Math.max(0, window.innerHeight + y - 46) + "px";
+}
 (function weatherShade() {
-  const lip = document.getElementById("shadelip"), veil = document.getElementById("shadeveil");
+  const lip = document.getElementById("shadelip");
   let startY = null, dy = 0;
   const vh = () => window.innerHeight;
+  setShade(shadeBaseY(), false);
   lip.addEventListener("pointerdown", e => {
     startY = e.clientY; dy = 0;
     lip.setPointerCapture(e.pointerId);
-    veil.style.transition = "none"; lip.style.transition = "none";
     e.preventDefault();
   });
   lip.addEventListener("pointermove", e => {
     if (startY === null) return;
     dy = e.clientY - startY;
-    if (!weatherChanged()) {
-      const pull = Math.max(0, Math.min(dy, vh() * .9));
-      veil.style.transform = `translateY(${-100 + (pull / vh()) * 100}%)`;
-      lip.style.top = `calc(${pull - 6}px + env(safe-area-inset-top))`;
-    } else {
-      const push = Math.min(0, Math.max(dy, -vh() * .9));
-      veil.style.transform = `translateY(${-16 + (push / vh()) * 100}%)`;
-      lip.style.top = `calc(${vh() * .76 + push}px + env(safe-area-inset-top))`;
-    }
+    const y = Math.max(-vh() + 6, Math.min(shadeBaseY() + dy, -vh() * .06));
+    setShade(y, false);
   });
   const settle = () => {
     if (startY === null) return;
-    veil.style.transition = ""; lip.style.transition = "top .5s cubic-bezier(.3,.8,.3,1)";
-    veil.style.transform = ""; lip.style.top = "";
-    if (!weatherChanged() && dy > vh() * .34) {
+    if (!weatherChanged() && dy > vh() * .32) {
       localStorage.setItem("weather_" + todayISO(), "1");
       document.body.classList.add("weatherday");
       toast("The weather turned — nothing counts against you today");
@@ -1430,11 +1424,12 @@ function toast(msg, opts) {
       toast("Skies clearing — the sea wakes back up");
       render(true);
     }
+    setShade(shadeBaseY(), true);
     startY = null; dy = 0;
-    setTimeout(() => { lip.style.transition = ""; }, 550);
   };
   lip.addEventListener("pointerup", settle);
   lip.addEventListener("pointercancel", settle);
+  addEventListener("resize", () => setShade(shadeBaseY(), false));
 })();
 
 let lastY = 0;
