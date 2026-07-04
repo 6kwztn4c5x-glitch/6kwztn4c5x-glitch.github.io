@@ -514,6 +514,40 @@ function towTask() {
   return active().find(t => t.family && t.timed && !t.done && Math.abs(hourOf(t) - now) <= 1);
 }
 
+/* ═══════ the harbor logbook — every landed day is keepable ═══════ */
+const LOGKEY = "voyage_log";
+function logbook() { try { return JSON.parse(localStorage.getItem(LOGKEY) || "[]"); } catch { return []; } }
+let maxStageToday = 0;
+function writeLogbookEntry() {
+  const log = logbook();
+  const today = todayISO();
+  const lit = active().filter(t => t.done).length;
+  const entry = { date: today, lit, total: active().length,
+    weathered: Math.max(maxStageToday, pressureStage()),
+    weather: weatherChanged(), harbor: active().length > 0 && active().every(t => t.done) };
+  const i = log.findIndex(e => e.date === today);
+  if (i >= 0) log[i] = entry; else log.unshift(entry);
+  localStorage.setItem(LOGKEY, JSON.stringify(log.slice(0, 120)));
+}
+const SEA_NAMES = ["calm seas", "a watchful serpent", "sirens on the wind", "dark water weathered", "a kraken faced"];
+function openLogbook() {
+  const log = logbook();
+  const rows = log.slice(0, 30).map(e => {
+    const d = new Date(e.date + "T12:00:00");
+    const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const line = e.weather ? "the weather turned — the day rested"
+      : `${e.lit} island${e.lit === 1 ? "" : "s"} lit · ${SEA_NAMES[Math.min(e.weathered, 4)]}${e.harbor ? " · made harbor" : ""}`;
+    return `<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid rgba(255,255,255,.06)">
+      <div style="font-weight:800">${label}</div><div style="color:#9aa0bd;font-size:13.5px;text-align:right">${line}</div></div>`;
+  }).join("");
+  sheet.innerHTML = `<div class="t">The Logbook</div>
+    <div class="s">every day you landed, kept</div>
+    ${rows || `<div class="s">tonight writes the first page</div>`}
+    <div class="acts" style="margin-top:14px"><button class="quiet" data-a="close">back</button></div>`;
+  sheet.querySelector('[data-a="close"]').addEventListener("click", closeSheet);
+  document.body.classList.add("sheet-open");
+}
+
 /* ═══════ action journal — everything sent away today can come back ═══════ */
 const JKEY = () => "voyage_journal_" + todayISO();
 function journal() { try { return JSON.parse(localStorage.getItem(JKEY()) || "[]"); } catch { return []; } }
@@ -730,14 +764,25 @@ function render(fade) {
   let h = "";
   /* where this leg began — the fire burns only while it's still night; daybreak means camp struck, embers out */
   const cs = Math.min(w * .36, 180);
-  const nightCamp = isNight();
   h += `<div class="campscene" style="top:0;height:${campH}px">
     <div class="waterpool" style="left:${w * .5 - cs * .78}px;top:${campH * .5 + cs * .3}px;width:${cs * 1.56}px;height:${cs * .34}px"></div>
-    ${nightCamp ? `<div class="cs-art" style="left:${w * .5 - cs * .82}px;top:${campH * .5 - cs * .52}px;width:${cs}px;height:${cs}px"><img src="art/campfire.png" alt=""></div>` : ""}
     <div class="ripple" style="left:${w * .5 - cs * .5}px;top:${campH * .5 + cs * .34}px;width:${cs * .9}px;height:${cs * .3}px"></div>
-    <div class="titlecard" style="top:${campH * .5 + cs * .44}px">
-      <div class="kicker">${nightCamp ? "the night's camp · fire low, day settled" : "daybreak · camp struck, embers out"}</div><span class="brassrule"></span></div>
+    ${isNight() ? "" : `<div class="titlecard" style="top:${campH * .5 + cs * .44}px">
+      <div class="kicker">daybreak · camp struck, embers out</div><span class="brassrule"></span></div>`}
   </div>`;
+
+  // the rarest morning: a real day with nothing on it is a gift, not a bug
+  if (!DEMO && active().length === 0 && blockedList().length === 0) {
+    const es = Math.min(w * .5, 240);
+    h += `<div class="island done" style="top:${campH + 40}px;height:${unit * .8}px">
+      <div class="waterpool" style="left:${w/2 - es*.52}px;top:${unit*.4 + es*.26}px;width:${es*1.04}px;height:${es*.24}px"></div>
+      <div class="isle-art" style="left:${w/2 - es/2}px;top:${unit*.4 - es*.56}px;width:${es}px;height:${es}px"><img src="art/chairs.png" alt=""></div>
+      <div class="mirror" style="left:${w/2 - es/2}px;top:${unit*.4 - es*.56 + es*.96}px;width:${es}px;height:${es}px"><img src="art/chairs.png" alt=""></div>
+      <div class="titlecard" style="top:${unit*.4 + es*.42}px">
+        <div class="kicker">an empty harbor — the rarest morning</div>
+        <div class="name" style="font-size:21px">The day is yours</div><span class="brassrule"></span></div>
+    </div>`;
+  }
 
   // reach bands — brass type, no emoji
   const cur = isNight() ? null : currentReach();
@@ -805,10 +850,20 @@ function render(fade) {
       <img src="art/dock.png" alt=""></div>
     <div class="mirror" style="left:${w/2 - ds/2}px;top:${openH*.42 - ds*.56 + ds*.96}px;width:${ds}px;height:${ds}px">
       <img src="art/dock.png" alt=""></div>
-    <div class="titlecard" style="top:${openH*.42 + ds*.4}px"><div class="kicker">harbor tonight — the board is clear</div><span class="brassrule"></span></div>`
+    <div class="titlecard" style="top:${openH*.42 + ds*.4}px"><div class="kicker" data-logbook style="pointer-events:auto;cursor:pointer">harbor tonight — the board is clear · logbook</div><span class="brassrule"></span></div>`
     : `<div class="titlecard" style="top:${openH*.4}px"><div class="kicker">open water ahead</div>
        <div class="sub" style="margin-top:6px">tonight's camp forms wherever you are</div><span class="brassrule"></span></div>`}
   </div>`;
+
+  // tonight's camp — after dark the fire burns beside the boat, wherever the day ended
+  if (isNight()) {
+    const fs2 = Math.min(w * .3, 150);
+    h += `<div id="nightcamp" class="campscene" style="top:0;height:0;overflow:visible">
+      <div class="cs-art" id="nightfire" style="width:${fs2}px;height:${fs2}px"><img src="art/campfire.png" alt=""></div>
+      <div class="titlecard" id="nightcampcard" style="width:${w}px">
+        <div class="kicker" data-logbook style="pointer-events:auto;cursor:pointer">tonight's camp · the day is landed · logbook</div><span class="brassrule"></span></div>
+    </div>`;
+  }
 
   // route + boat + tow + now-line
   h += `<svg id="route" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" xmlns="http://www.w3.org/2000/svg">
@@ -866,6 +921,19 @@ function wire() {
   markFog();
   document.querySelectorAll("[data-sail]").forEach(el =>
     el.addEventListener("click", (e) => { e.stopPropagation(); setSail(el.dataset.sail); }));
+  document.querySelectorAll("[data-logbook]").forEach(el =>
+    el.addEventListener("click", (e) => { e.stopPropagation(); openLogbook(); }));
+  // after dark, the fire settles beside the boat — tonight's camp is wherever the day ended
+  const nc = document.getElementById("nightcamp");
+  if (nc && wakeEl) {
+    const p = wakeEl.getPointAtLength(Math.max(0, Math.min(boatLen ?? 0, RL - 1)));
+    const fire = document.getElementById("nightfire"), card = document.getElementById("nightcampcard");
+    const fw = fire.offsetWidth || 130;
+    fire.style.left = (p.x < L.w / 2 ? p.x + 54 : p.x - 54 - fw) + "px";
+    fire.style.top = (p.y - fw * .52) + "px";
+    card.style.left = "0px"; card.style.top = (p.y + fw * .5) + "px";
+    writeLogbookEntry();
+  }
   document.querySelectorAll(".isle-art[data-id], .titlecard .name[data-id], .buoy[data-id]").forEach(el =>
     el.addEventListener("click", () => openSheet(el.dataset.id)));
 }
@@ -980,6 +1048,9 @@ function creatureSpots() {
 }
 function updateCreatures() {
   const stage = Math.min(pressureStage(), 4);
+  const msk = "voyage_maxstage_" + todayISO();
+  maxStageToday = Math.max(maxStageToday, stage, parseInt(localStorage.getItem(msk) || "0"));
+  localStorage.setItem(msk, String(maxStageToday));
   document.querySelectorAll(".creature").forEach(c => c.remove());
   const spots = creatureSpots();
   if (!spots.length) return;
@@ -1325,32 +1396,64 @@ function wireChartDrag() {
   });
 }
 
-/* add an island */
+/* ═══════ capture: talk (iOS dictation) or type — the parser reads times, spans, waters, and splits ═══════ */
+function parseCapture(raw) {
+  // split one utterance into tasks on strong separators
+  const parts = raw.split(/(?:,\s+and\s+|;\s*|\.\s+(?=[A-Z])|\s+and\s+(?:also\s+)?(?=\w+\s))/i)
+    .map(s => s.trim()).filter(s => s.length > 2);
+  return (parts.length ? parts : [raw]).map(part => {
+    let text = part, timed = null, durMin = null, reach = null;
+    const tm = text.match(/\b(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
+    if (tm) {
+      let hh = +tm[1]; const mm = +(tm[2] || 0);
+      if (/pm/i.test(tm[3]) && hh < 12) hh += 12;
+      else if (!tm[3] && hh <= 7) hh += 12;          // "at 4" during the day usually means 4pm
+      timed = { hh, mm };
+      text = text.replace(tm[0], "").trim();
+    }
+    const dm = text.match(/\b(?:for\s+)?(?:about\s+)?(?:(\d{1,3})\s*(?:min|minutes|m\b)|half\s+(?:an\s+)?hour|(\d{1,2})\s*hours?)\b/i);
+    if (dm) {
+      durMin = dm[1] ? +dm[1] : dm[2] ? +dm[2] * 60 : 30;
+      text = text.replace(dm[0], "").trim();
+    }
+    const rm = text.match(/\b(?:this\s+|in\s+the\s+)?(morning|midday|afternoon|evening|tonight)\b/i);
+    if (rm) {
+      reach = rm[1].toLowerCase() === "tonight" ? "evening" : rm[1].toLowerCase();
+      text = text.replace(rm[0], "").trim();
+    }
+    text = text.replace(/^(?:i\s+(?:need|have|want)\s+to|gotta|remember\s+to|don't\s+forget\s+to)\s+/i, "")
+      .replace(/\s{2,}/g, " ").replace(/^[,.\s]+|[,.\s]+$/g, "");
+    return { text: text.charAt(0).toUpperCase() + text.slice(1), timed, durMin, reach };
+  }).filter(p => p.text.length > 1);
+}
 document.getElementById("addfab").addEventListener("click", () => {
-  let selReach = "anytime";
-  sheet.innerHTML = `<div class="t">New island</div><div class="s">rises on today's route — tap the mic on your keyboard and just talk</div>
-    <input id="newtask" type="text" placeholder="What needs doing?" autocomplete="off">
-    <div class="reachpick">${REACHES.map(r => `<button data-r="${r}" class="${r === "anytime" ? "on" : ""}">${r}</button>`).join("")}</div>
+  sheet.innerHTML = `<div class="t">New island</div><div class="s">type it — or tap the mic on your keyboard and just talk. Times, lengths, and waters are understood ("call the plumber this afternoon for 20 minutes, and pick up Zoe at 4").</div>
+    <input id="newtask" type="text" placeholder="What needs doing?" autocomplete="off" autocapitalize="sentences">
     <div class="acts"><button class="primary" id="addgo">Add to the route</button>
     <button class="quiet" id="addcancel">back</button></div>`;
   document.body.classList.add("sheet-open");
   const inp = document.getElementById("newtask");
   setTimeout(() => inp.focus(), 350);
-  sheet.querySelectorAll(".reachpick button").forEach(b => b.addEventListener("click", () => {
-    sheet.querySelectorAll(".reachpick button").forEach(x => x.classList.remove("on"));
-    b.classList.add("on"); selReach = b.dataset.r;
-  }));
   document.getElementById("addcancel").addEventListener("click", closeSheet);
   document.getElementById("addgo").addEventListener("click", async () => {
-    const text = inp.value.trim(); if (!text) return;
+    const raw = inp.value.trim(); if (!raw) return;
     closeSheet();
+    const parsed = parseCapture(raw);
     try {
-      if (DEMO) tasks.push({ id: "d" + Math.random(), name: text, sub: "", done: false, labels: selReach === "anytime" ? [] : [selReach], reachLabel: selReach === "anytime" ? null : selReach });
-      else {
-        const created = await api("POST", "tasks", { content: text, due_string: "today", labels: selReach === "anytime" ? [] : [selReach] });
-        tasks.push(mapTask(created));
+      for (const p of parsed) {
+        if (DEMO) {
+          const d = p.timed ? new Date() : null;
+          if (d) d.setHours(p.timed.hh, p.timed.mm, 0, 0);
+          tasks.push({ id: "d" + Math.random(), name: p.text, sub: "", done: false,
+            labels: p.reach ? [p.reach] : [], reachLabel: p.reach, timed: d, durMin: p.durMin });
+        } else {
+          const body = { content: p.text + (p.durMin ? ` ~${p.durMin}m` : ""), labels: p.reach ? [p.reach] : [] };
+          body.due_string = p.timed ? `today ${p.timed.hh}:${String(p.timed.mm).padStart(2, "0")}` : "today";
+          const created = await api("POST", "tasks", body);
+          tasks.push(mapTask(created));
+        }
       }
-      toast("An island rises from the sea");
+      toast(parsed.length > 1 ? `${parsed.length} islands rise from the sea` : "An island rises from the sea");
       boatLen = null; render(true);
     } catch { toast("Couldn't add — try again"); }
   });
@@ -1449,12 +1552,33 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden && !D
 /* clock ticks: sky repaints + now-line advances */
 setInterval(() => { paintSky(); const nl = document.getElementById("nowline"); if (nl && L) nl.style.top = hourY() + "px"; }, 60000);
 
+function showLoadingTide() {
+  document.getElementById("world").innerHTML = `<div id="sea"></div>
+    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px">
+      <div style="width:160px;height:2px;background:linear-gradient(90deg,transparent,#7adcff88,transparent);animation:shim 1.6s ease-in-out infinite"></div>
+      <div style="font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#8b93b8">the tide brings your day</div>
+      <div style="width:110px;height:2px;background:linear-gradient(90deg,transparent,#7adcff66,transparent);animation:shim 1.6s ease-in-out infinite;animation-delay:.5s"></div>
+    </div>`;
+}
+function showStorm(msg) {
+  document.getElementById("world").innerHTML = `<div id="sea"></div>
+    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:30px">
+      <div style="max-width:340px;text-align:center;background:rgba(20,26,51,.9);border:1px solid rgba(217,138,148,.35);border-radius:20px;padding:26px 22px">
+        <div style="font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:#d98a94;margin-bottom:8px">storm warning</div>
+        <div style="font-size:17px;font-weight:800;margin-bottom:6px">${esc(msg)}</div>
+        <div style="color:#9aa0bd;font-size:13.5px;margin-bottom:18px">the sea is still out there — we just can't see it from here</div>
+        <button id="stormretry" style="border:0;border-radius:12px;background:#e8a33d;color:#241804;font-weight:800;font-size:15px;padding:12px 22px;cursor:pointer;font-family:inherit">Try again</button>
+        <button id="stormdemo" style="border:0;background:none;color:#9aa0bd;font-size:13px;padding:12px;cursor:pointer;font-family:inherit;display:block;margin:6px auto 0">sail the demo instead</button>
+      </div></div>`;
+  document.getElementById("stormretry").addEventListener("click", boot);
+  document.getElementById("stormdemo").addEventListener("click", () => { DEMO = true; boot(); });
+}
 async function boot() {
+  if (!DEMO) showLoadingTide();
   try { await loadTasks(); }
   catch (e) {
-    DEMO = true;
-    toast(e.message === "auth" ? "Token didn't work — demo day for now" : "Couldn't reach Todoist — demo day");
-    await loadTasks();
+    if (e.message === "auth") { DEMO = true; toast("Token didn't work — demo day for now"); await loadTasks(); }
+    else { showStorm("Couldn't reach Todoist"); return; }
   }
   /* review aids */
   if (Q.get("weather") === "1") localStorage.setItem("weather_" + todayISO(), "1");
@@ -1477,6 +1601,11 @@ async function boot() {
       window.scrollTo(0, Math.max(0, p.y - unit * .45));
     }
   }, 80);
+  /* warm the face-swap sprites so pressure changes never pop in late */
+  setTimeout(() => {
+    ["serpent-sly","serpent-close","sirens-hungry","tentacle","kraken-eyes","kraken-full","dinghy-tow","dock"]
+      .forEach(n => { const i = new Image(); i.src = "art/" + n + ".png"; });
+  }, 2500);
 }
 boot();
 </script>
