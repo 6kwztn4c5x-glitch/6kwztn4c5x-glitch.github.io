@@ -372,8 +372,13 @@ const RSTART = { morning: 6, midday: 10, afternoon: 14, evening: 18 };
 const REND   = { morning: 10, midday: 14, afternoon: 18, evening: 22, anytime: 22 };
 function reachOfHour(h) { return h < 10 ? "morning" : h < 14 ? "midday" : h < 18 ? "afternoon" : "evening"; }
 function reachEnd(r) { return REND[r]; }
-function currentReach() { const h = nowH(); return (h < 6 || h >= 22) ? "night" : reachOfHour(h); }
-function isNight() { const h = nowH(); return h < 6 || h >= 22; }
+/* breaking camp early moves today's daybreak to when YOU started, not the clock's 6am */
+function dayStartH() {
+  const v = parseFloat(localStorage.getItem("voyage_daystart_" + todayISO()));
+  return isNaN(v) ? 6 : Math.min(v, 6);
+}
+function currentReach() { const h = nowH(); return (h < dayStartH() || h >= 22) ? "night" : reachOfHour(h); }
+function isNight() { const h = nowH(); return h < dayStartH() || h >= 22; }
 
 /* ═══════════════ THE SKY CLOCK ═══════════════
    keyframes across the day; linear blend between them */
@@ -753,10 +758,10 @@ function scatter(n, fn) { let s = ""; for (let i = 0; i < n; i++) s += fn(i); re
 /* the hour's position on the route: interpolate through time anchors */
 function hourY() {
   const h = nowH();
-  if (h <= 6) return L.points[0].y;
+  if (h <= dayStartH()) return L.points[0].y;
   if (h >= 22) return L.openTop + L.openH * .35;
   // anchors: camp(6) → each band start hour at its top → open water(22)
-  const anchors = [{ y: L.points[0].y, h: 6 }];
+  const anchors = [{ y: L.points[0].y, h: dayStartH() }];
   L.bands.forEach(b => anchors.push({ y: b.top, h: b.start }));
   anchors.push({ y: L.openTop, h: 22 });
   for (let i = 0; i < anchors.length - 1; i++) {
@@ -892,7 +897,9 @@ function render(fade) {
     h += `<div id="nightcamp" class="campscene" style="top:0;height:0;overflow:visible">
       <div class="cs-art" id="nightfire" style="width:${fs2}px;height:${fs2}px"><img src="art/campfire.png" alt=""></div>
       <div class="titlecard" id="nightcampcard" style="width:${w}px">
-        <div class="kicker" data-logbook style="pointer-events:auto;cursor:pointer">tonight's camp · the day is landed · logbook</div><span class="brassrule"></span></div>
+        <div class="kicker" data-logbook style="pointer-events:auto;cursor:pointer">tonight's camp · the day is landed · logbook</div>
+        ${nowH() >= 4 && nowH() < 6 ? `<button class="setsail" data-breakcamp style="margin-top:10px">Break camp — the day starts now</button>` : ""}
+        <span class="brassrule"></span></div>
     </div>`;
   }
 
@@ -954,6 +961,13 @@ function wire() {
     el.addEventListener("click", (e) => { e.stopPropagation(); setSail(el.dataset.sail); }));
   document.querySelectorAll("[data-logbook]").forEach(el =>
     el.addEventListener("click", (e) => { e.stopPropagation(); openLogbook(); }));
+  document.querySelectorAll("[data-breakcamp]").forEach(el =>
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      localStorage.setItem("voyage_daystart_" + todayISO(), String(Math.floor(nowH() * 4) / 4));
+      toast("Camp broken — the day is yours before the sun's even up");
+      boatLen = null; render(true);
+    }));
   // after dark, the fire settles beside the boat — tonight's camp is wherever the day ended
   const nc = document.getElementById("nightcamp");
   if (nc && wakeEl) {
