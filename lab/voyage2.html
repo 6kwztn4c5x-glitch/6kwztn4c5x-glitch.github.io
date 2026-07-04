@@ -1322,13 +1322,16 @@ function buildChart() {
     h += `</div>`;
   }
   const doneN = active().filter(t => t.done).length;
-  h += `<div class="ch-sub" style="margin-top:8px">${doneN} lit · ${active().length - doneN} on the water${mode === "evening" ? " · the fire waits where you land" : ""}</div>`;
+  h += `<div class="ch-sub" style="margin-top:8px">${doneN} lit · ${active().length - doneN} on the water${mode === "evening" ? " · the fire waits where you land" : ""}</div>
+    <button class="ch-tide" data-logbook style="border-color:rgba(232,163,61,.45);background:rgba(232,163,61,.06);color:#f5c469">The Logbook — every landed day, kept</button>`;
   chart.innerHTML = h;
   document.getElementById("chx").addEventListener("click", chartClose);
   const tb = document.getElementById("tidebtn");
   if (tb) tb.addEventListener("click", tideChanged);
   chart.querySelectorAll("[data-bring]").forEach(b =>
     b.addEventListener("click", () => bringBack(journal()[+b.dataset.bring])));
+  chart.querySelectorAll("[data-logbook]").forEach(b =>
+    b.addEventListener("click", () => openLogbook()));
   chart.querySelectorAll(".ch-row .ract button[data-a]").forEach(b => {
     b.addEventListener("click", async (e) => {
       e.stopPropagation();
