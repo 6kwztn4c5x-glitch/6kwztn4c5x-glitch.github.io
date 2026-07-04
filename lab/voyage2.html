@@ -77,8 +77,9 @@
     background: var(--gl, #7adcff); animation: shim 3.6s ease-in-out infinite; }
   @keyframes shim { 50% { opacity: .4; } }
   .mist { position: absolute; left: -10%; right: -10%; pointer-events: none; z-index: 3;
-    background: radial-gradient(60% 100% at 50% 50%, rgba(168,178,214,.13), rgba(168,178,214,.05) 55%, transparent 80%);
-    filter: blur(6px); animation: mistdrift 40s ease-in-out infinite alternate; }
+    background: radial-gradient(52% 78% at 50% 50%, rgba(168,178,214,.12), rgba(168,178,214,.04) 52%, transparent 72%);
+    filter: blur(12px); animation: mistdrift 40s ease-in-out infinite alternate;
+    opacity: calc(.45 + (1 - var(--dayk)) * .55); }
   .mist.m2 { animation-duration: 55s; animation-direction: alternate-reverse; opacity: .8; }
   @keyframes mistdrift { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
 
@@ -130,7 +131,14 @@
   .isle-art img { width: 100%; height: 100%; display: block;
     -webkit-mask-image: radial-gradient(closest-side, #000 40%, rgba(0,0,0,.75) 54%, transparent 76%);
     mask-image: radial-gradient(closest-side, #000 40%, rgba(0,0,0,.75) 54%, transparent 76%); }
-  body.nightmode .isle-art img {
+  /* day masks cut to the subject by tier: places keep their towers, objects trim to a tight pool */
+  .isle-art.tier-place img {
+    -webkit-mask-image: radial-gradient(42% 58% at 50% 52%, #000 46%, rgba(0,0,0,.7) 62%, transparent 82%);
+    mask-image: radial-gradient(42% 58% at 50% 52%, #000 46%, rgba(0,0,0,.7) 62%, transparent 82%); }
+  .isle-art.tier-object img {
+    -webkit-mask-image: radial-gradient(44% 40% at 50% 56%, #000 40%, rgba(0,0,0,.7) 56%, transparent 74%);
+    mask-image: radial-gradient(44% 40% at 50% 56%, #000 40%, rgba(0,0,0,.7) 56%, transparent 74%); }
+  body.nightmode .isle-art img, body.nightmode .isle-art.tier-place img, body.nightmode .isle-art.tier-object img {
     -webkit-mask-image: radial-gradient(closest-side, #000 52%, rgba(0,0,0,.8) 68%, transparent 92%);
     mask-image: radial-gradient(closest-side, #000 52%, rgba(0,0,0,.8) 68%, transparent 92%); }
   /* real reflection: flipped, squashed, blurred copy of the art itself */
@@ -812,7 +820,7 @@ function render(fade) {
       ${isDrift ? `<svg class="driftsvg" width="${w}" height="${ih}" viewBox="0 0 ${w} ${ih}" style="position:absolute;inset:0;z-index:1;pointer-events:none">
         <path class="drift-trail" d="M ${cx < w/2 ? w*.8 : w*.2} ${ih*.05} C ${cx < w/2 ? w*.6 : w*.4} ${ih*.2}, ${cx} ${ih*.3}, ${cx} ${ry - size*.3}"/></svg>` : ""}
       <div class="waterpool" style="left:${cx - size * .52}px;top:${ry + size * .26}px;width:${size * 1.04}px;height:${size * .24}px"></div>
-      <div class="isle-art" data-id="${t.id}" style="left:${cx - size/2}px;top:${artTop}px;width:${size}px;height:${size}px">
+      <div class="isle-art tier-${(ART[artFor(t)] || {}).tier || "object"}" data-id="${t.id}" style="left:${cx - size/2}px;top:${artTop}px;width:${size}px;height:${size}px">
         <img src="art/${artFor(t)}.png" alt=""></div>
       <div class="mirror" style="left:${cx - size/2}px;top:${artTop + size * .96}px;width:${size}px;height:${size}px">
         <img src="art/${artFor(t)}.png" alt=""></div>
