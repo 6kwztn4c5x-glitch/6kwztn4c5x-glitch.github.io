@@ -30,16 +30,22 @@
     opacity: 0; transition: opacity 2s; }
   body.kraken-up #skydim { opacity: 1; }
 
-  /* ═══════════ weather changed — drag the cloud down over the day ═══════════ */
-  #cloudhandle { position: fixed; top: calc(44px + env(safe-area-inset-top)); left: 50%; margin-left: -30px;
-    z-index: 42; width: 60px; height: 40px; opacity: .45; cursor: grab; touch-action: none; }
-  #cloudhandle svg { width: 100%; height: 100%; filter: drop-shadow(0 2px 8px rgba(6,9,20,.6)); }
-  body.weatherday #cloudhandle { opacity: .95; }
-  #stormveil { position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0;
-    background: linear-gradient(180deg, rgba(40,46,70,.9) 0%, rgba(26,30,50,.6) 60%, rgba(30,34,54,.7) 100%);
-    transition: opacity .5s; }
-  body.weatherday #stormveil { opacity: .85; }
-  #weathernote { position: fixed; top: calc(88px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 42;
+  /* ═══════════ weather changed — pull the cloud shade down over the whole day ═══════════ */
+  #cloudshade { position: fixed; left: 0; right: 0; top: 0; z-index: 41; touch-action: none;
+    height: 0; cursor: grab; }
+  #shadeveil { position: fixed; left: 0; right: 0; top: 0; height: 100vh; z-index: 5; pointer-events: none;
+    background: linear-gradient(180deg, rgba(42,48,72,.94) 0%, rgba(30,34,56,.8) 70%, rgba(30,34,56,.75) 100%);
+    transform: translateY(-100%); transition: transform .6s cubic-bezier(.3,.8,.3,1); }
+  body.weatherday #shadeveil { transform: translateY(-16%); }
+  #shadelip { position: fixed; left: 0; right: 0; top: calc(-6px + env(safe-area-inset-top)); z-index: 42;
+    height: 46px; touch-action: none; cursor: grab; }
+  #shadelip svg { width: 100%; height: 100%; display: block; opacity: .8;
+    filter: drop-shadow(0 3px 10px rgba(6,9,20,.55)); }
+  body.weatherday #shadelip { top: calc(76vh + env(safe-area-inset-top)); }
+  #shadelip .liptext { position: absolute; top: 26px; left: 0; right: 0; text-align: center;
+    font-size: 9.5px; letter-spacing: .3em; text-transform: uppercase; color: #aeb6d8; opacity: 0; transition: opacity .3s; }
+  body.weatherday #shadelip .liptext { opacity: .85; top: 30px; }
+  #weathernote { position: fixed; top: calc(96px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 42;
     text-align: center; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #aeb6d8;
     display: none; pointer-events: none; text-shadow: 0 1px 8px rgba(6,9,20,.8); }
   body.weatherday #weathernote { display: block; }
@@ -253,7 +259,8 @@
     box-shadow: 0 8px 26px rgba(0,0,0,.45); backdrop-filter: blur(8px); font-weight: 800; }
   #chart { position: fixed; inset: 0; z-index: 46; background: linear-gradient(180deg, #0d1128 0%, #131834 100%);
     transform: translateY(103%); transition: transform .4s cubic-bezier(.3,.8,.3,1);
-    overflow-y: auto; padding: calc(18px + env(safe-area-inset-top)) 18px 120px; }
+    overflow-y: auto; padding: calc(18px + env(safe-area-inset-top)) 18px calc(190px + env(safe-area-inset-bottom)); }
+  body.chart-dragging #chart { overflow-y: hidden; }
   body.chart-open #chart { transform: translateY(0); }
   .ch-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
   .ch-head h2 { font-size: 24px; font-weight: 800; letter-spacing: -.3px; }
@@ -302,12 +309,12 @@
 <div id="vignette"></div>
 <div id="skydim"></div>
 <header><h1 id="daytitle">The Voyage</h1><div class="prog" id="prog"></div></header>
-<div id="stormveil"></div>
-<div id="cloudhandle" title="drag the weather down over the day">
-  <svg viewBox="0 0 60 40" fill="none" stroke="#aeb6d8" stroke-width="2" stroke-linecap="round">
-    <path d="M14 26 a8 8 0 0 1 2-15 a11 11 0 0 1 21-3 a9 9 0 0 1 9 14 z" fill="rgba(120,130,170,.25)"/>
-    <path d="M20 32 l-2 5 M30 32 l-2 5 M40 32 l-2 5" opacity=".7"/>
+<div id="shadeveil"></div>
+<div id="shadelip" title="pull the weather down over the day">
+  <svg viewBox="0 0 390 46" preserveAspectRatio="none" fill="rgba(116,126,166,.34)" stroke="#aeb6d8" stroke-width="1.2">
+    <path d="M-4 -4 H394 V18 q-24 16 -52 10 q-22 14 -46 6 q-18 12 -40 5 q-24 12 -48 4 q-22 12 -44 5 q-26 12 -50 4 q-28 12 -54 3 q-30 10 -60 2 z"/>
   </svg>
+  <div class="liptext">pull up when skies clear</div>
 </div>
 <div id="weathernote">the weather turned · the sea stands down</div>
 <button class="gear" id="gear">⚙︎</button>
@@ -519,20 +526,22 @@ function journalRemove(id) {
   localStorage.setItem(JKEY(), JSON.stringify(journal().filter(e => String(e.id) !== String(id))));
 }
 async function bringBack(entry) {
+  if (!entry) return;
   try {
     if (!DEMO) {
-      const body = { labels: entry.prior.labels };
-      await api("POST", `tasks/${entry.id}`, body);
+      await api("POST", `tasks/${entry.id}`, { labels: entry.prior.labels });
       await api("POST", `tasks/${entry.id}`, entry.prior.timed
         ? { due_datetime: entry.prior.timed } : { due_string: "today" });
+      await loadTasks();
+    } else if (!tasks.some(x => String(x.id) === String(entry.id))) {
+      tasks.push({ id: entry.id, name: entry.name, sub: "", done: false,
+        labels: entry.prior.labels, reachLabel: entry.prior.reachLabel,
+        timed: entry.prior.timed ? new Date(entry.prior.timed) : null });
     }
     journalRemove(entry.id);
-    await loadTasks();
-    if (DEMO) tasks.push({ id: entry.id, name: entry.name, sub: "", done: false,
-      labels: entry.prior.labels, reachLabel: entry.prior.reachLabel,
-      timed: entry.prior.timed ? new Date(entry.prior.timed) : null });
     toast("Back on the water, right where it was");
     boatLen = null; render(true);
+    if (document.body.classList.contains("chart-open")) buildChart();
   } catch { toast("Couldn't bring it back — try again"); }
 }
 
@@ -1228,23 +1237,26 @@ async function setReach(t, r) {
   if (!DEMO) await api("POST", `tasks/${t.id}`, { labels: newLabels });
 }
 
-/* drag an island between waters; drop on the rail = pin an exact time */
+/* drag an island between waters; drop on the rail = pin an exact time.
+   grab: instantly by the picture, or hold anywhere on the row for a third of a second. */
 function wireChartDrag() {
-  chart.querySelectorAll(".ch-row img").forEach(img => {
-    img.addEventListener("pointerdown", e => {
-      const row = img.closest(".ch-row");
-      const id = row.dataset.id;
-      if (!id) return;
-      const t = tasks.find(x => String(x.id) === String(id));
-      if (!t || t.done || t.blocked) return;
-      e.preventDefault();
-      img.setPointerCapture(e.pointerId);
+  chart.querySelectorAll(".ch-row[data-id]").forEach(row => {
+    const id = row.dataset.id;
+    const t = tasks.find(x => String(x.id) === String(id));
+    if (!t || t.done || t.blocked) return;
+    const img = row.querySelector("img");
+
+    const beginDrag = (e, src) => {
+      document.body.classList.add("chart-dragging");
+      src.setPointerCapture(e.pointerId);
       const ghost = row.cloneNode(true);
       ghost.classList.add("ch-ghost");
       document.body.appendChild(ghost);
+      ghost.style.left = e.clientX + "px"; ghost.style.top = e.clientY + "px";
       row.classList.add("dragging");
       let over = null, railReach = null, railFrac = 0;
       const move = ev => {
+        ev.preventDefault();
         ghost.style.left = ev.clientX + "px"; ghost.style.top = ev.clientY + "px";
         ghost.style.display = "none";
         const el = document.elementFromPoint(ev.clientX, ev.clientY);
@@ -1256,28 +1268,26 @@ function wireChartDrag() {
         if (g) {
           g.classList.add("dropover");
           const rail = g.querySelector(".hourrail");
-          const wantsRail = t.timed || (rail && ev.clientX > g.getBoundingClientRect().right - 84);
+          const wantsRail = t.timed || (rail && ev.clientX > g.getBoundingClientRect().right - 96);
           if (rail && wantsRail && over !== "anytime") {
             g.classList.add("railon");
             const rb = rail.getBoundingClientRect();
             railFrac = Math.max(0, Math.min(1, (ev.clientY - rb.top) / rb.height));
             const rc = rail.querySelector(".railcursor");
-            if (ev.clientX > rb.left - 20) {
-              railReach = over;
-              rc.style.display = "block"; rc.style.top = (railFrac * 100) + "%";
-            }
+            railReach = over;
+            rc.style.display = "block"; rc.style.top = (railFrac * 100) + "%";
           }
         }
       };
-      const up = async ev => {
-        img.removeEventListener("pointermove", move);
+      const finish = async () => {
+        src.removeEventListener("pointermove", move);
+        document.body.classList.remove("chart-dragging");
         ghost.remove(); row.classList.remove("dragging");
         chart.querySelectorAll(".ch-reach").forEach(x => x.classList.remove("dropover", "railon"));
         try {
           if (railReach) {
             const span = REND[railReach] - RSTART[railReach];
-            const hRaw = RSTART[railReach] + railFrac * span;
-            const hSnap = Math.round(hRaw * 4) / 4;
+            const hSnap = Math.round((RSTART[railReach] + railFrac * span) * 4) / 4;
             const hh = Math.floor(hSnap), mm = Math.round((hSnap - hh) * 60);
             if (!DEMO) await api("POST", `tasks/${t.id}`, { due_string: `today ${hh}:${String(mm).padStart(2, "0")}` });
             else { const d = new Date(); d.setHours(hh, mm, 0, 0); t.timed = d; }
@@ -1291,9 +1301,23 @@ function wireChartDrag() {
           }
         } catch { toast("Couldn't move that — try again"); }
       };
-      img.addEventListener("pointermove", move);
-      img.addEventListener("pointerup", up, { once: true });
-      img.addEventListener("pointercancel", () => { ghost.remove(); row.classList.remove("dragging"); }, { once: true });
+      src.addEventListener("pointermove", move);
+      src.addEventListener("pointerup", finish, { once: true });
+      src.addEventListener("pointercancel", finish, { once: true });
+    };
+
+    // instant drag from the picture
+    img.addEventListener("pointerdown", e => { e.preventDefault(); beginDrag(e, img); });
+    // hold-to-drag from anywhere else on the row
+    row.addEventListener("pointerdown", e => {
+      if (e.target === img || e.target.closest(".ract")) return;
+      const timer = setTimeout(() => { beginDrag(e, row); }, 340);
+      const cancel = () => clearTimeout(timer);
+      row.addEventListener("pointermove", function mv(ev) {
+        if (Math.abs(ev.clientY - e.clientY) > 12) { cancel(); row.removeEventListener("pointermove", mv); }
+      });
+      row.addEventListener("pointerup", cancel, { once: true });
+      row.addEventListener("pointercancel", cancel, { once: true });
     });
   });
 }
@@ -1359,37 +1383,50 @@ function toast(msg, opts) {
   setTimeout(() => el.remove(), opts && opts.undo ? 6000 : 3400);
 }
 
-/* ═══════ the cloud gesture: drag down = weather day; drag up = skies clear ═══════ */
-(function weatherGesture() {
-  const cl = document.getElementById("cloudhandle"), veil = document.getElementById("stormveil");
+/* ═══════ the shade: pull the whole sky down like closing a blind; push it back up to clear ═══════ */
+(function weatherShade() {
+  const lip = document.getElementById("shadelip"), veil = document.getElementById("shadeveil");
   let startY = null, dy = 0;
   const vh = () => window.innerHeight;
-  cl.addEventListener("pointerdown", e => { startY = e.clientY; dy = 0; cl.setPointerCapture(e.pointerId); e.preventDefault(); });
-  cl.addEventListener("pointermove", e => {
+  lip.addEventListener("pointerdown", e => {
+    startY = e.clientY; dy = 0;
+    lip.setPointerCapture(e.pointerId);
+    veil.style.transition = "none"; lip.style.transition = "none";
+    e.preventDefault();
+  });
+  lip.addEventListener("pointermove", e => {
     if (startY === null) return;
     dy = e.clientY - startY;
-    cl.style.transform = `translateY(${Math.max(-40, Math.min(dy, vh() * .7))}px)`;
-    if (!weatherChanged() && dy > 0) veil.style.opacity = Math.min(.85, (dy / vh()) * 1.6);
-    if (weatherChanged() && dy < 0) veil.style.opacity = Math.max(0, .85 + (dy / vh()) * 1.6);
+    if (!weatherChanged()) {
+      const pull = Math.max(0, Math.min(dy, vh() * .9));
+      veil.style.transform = `translateY(${-100 + (pull / vh()) * 100}%)`;
+      lip.style.top = `calc(${pull - 6}px + env(safe-area-inset-top))`;
+    } else {
+      const push = Math.min(0, Math.max(dy, -vh() * .9));
+      veil.style.transform = `translateY(${-16 + (push / vh()) * 100}%)`;
+      lip.style.top = `calc(${vh() * .76 + push}px + env(safe-area-inset-top))`;
+    }
   });
   const settle = () => {
-    cl.style.transform = ""; veil.style.opacity = "";
     if (startY === null) return;
-    if (!weatherChanged() && dy > vh() * .42) {
+    veil.style.transition = ""; lip.style.transition = "top .5s cubic-bezier(.3,.8,.3,1)";
+    veil.style.transform = ""; lip.style.top = "";
+    if (!weatherChanged() && dy > vh() * .34) {
       localStorage.setItem("weather_" + todayISO(), "1");
       document.body.classList.add("weatherday");
       toast("The weather turned — nothing counts against you today");
       render(true);
-    } else if (weatherChanged() && dy < -vh() * .28) {
+    } else if (weatherChanged() && dy < -vh() * .2) {
       localStorage.removeItem("weather_" + todayISO());
       document.body.classList.remove("weatherday");
       toast("Skies clearing — the sea wakes back up");
       render(true);
     }
     startY = null; dy = 0;
+    setTimeout(() => { lip.style.transition = ""; }, 550);
   };
-  cl.addEventListener("pointerup", settle);
-  cl.addEventListener("pointercancel", settle);
+  lip.addEventListener("pointerup", settle);
+  lip.addEventListener("pointercancel", settle);
 })();
 
 let lastY = 0;
