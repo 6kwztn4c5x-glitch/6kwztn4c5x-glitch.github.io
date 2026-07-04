@@ -313,7 +313,8 @@
     background: rgba(20,26,51,.92); cursor: pointer; box-shadow: 0 8px 26px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
   #micfab svg { width: 24px; height: 24px; display: block; margin: 0 auto; }
   #micfab.listening { background: rgba(232,163,61,.92); animation: micpulse 1.6s ease-in-out infinite; }
-  #micfab.listening svg path, #micfab.listening svg rect { stroke: #241804; }
+  #micfab.listening .micglyph { display: none; }
+  #micfab.listening .stopglyph { display: block !important; margin: 0 auto; }
   @keyframes micpulse { 50% { box-shadow: 0 0 0 14px rgba(232,163,61,.12); } }
   #livewords { position: fixed; left: 20px; right: 20px; bottom: calc(92px + env(safe-area-inset-bottom));
     z-index: 46; text-align: center; font-size: 16px; font-weight: 600; color: #f2ecdd; display: none;
@@ -342,10 +343,13 @@
 
 <button id="chartbtn" title="Captain's Chart">C</button>
 <div id="chart"></div>
-<button id="micfab" title="talk a task onto the water">
-  <svg viewBox="0 0 24 24" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round">
+<button id="micfab" title="talk as long as you like — tap again to finish">
+  <svg class="micglyph" viewBox="0 0 24 24" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round">
     <rect x="9" y="3" width="6" height="11" rx="3"/>
     <path d="M5 11 a7 7 0 0 0 14 0"/><path d="M12 18v3"/>
+  </svg>
+  <svg class="stopglyph" viewBox="0 0 24 24" fill="#241804" style="display:none">
+    <rect x="7" y="7" width="10" height="10" rx="2"/>
   </svg>
 </button>
 <div id="livewords"></div>
@@ -1443,38 +1447,49 @@ async function createParsed(parsed) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const mic = document.getElementById("micfab"), live = document.getElementById("livewords");
   if (!SR) { mic.addEventListener("click", () => document.getElementById("addfab").click()); return; }
-  let rec = null, finalText = "";
-  const stop = () => { if (rec) try { rec.stop(); } catch {} };
-  mic.addEventListener("click", () => {
-    if (rec) { stop(); return; }
-    finalText = "";
+  let rec = null, finalText = "", wantStop = false, restarts = 0;
+  const finalize = async () => {
+    mic.classList.remove("listening"); document.body.classList.remove("listening");
+    const said = finalText.trim();
+    rec = null; live.textContent = ""; finalText = ""; wantStop = false; restarts = 0;
+    if (!said) { toast("Didn't catch that — tap, talk, tap again"); return; }
+    const parsed = parseCapture(said);
+    if (!parsed.length) { toast("Didn't catch that — try again"); return; }
+    try {
+      await createParsed(parsed);
+      toast(parsed.length > 1 ? parsed.length + " islands rise from the sea" : "An island rises from the sea");
+      boatLen = null; render(true);
+    } catch { toast("Couldn't add — try again"); }
+  };
+  const startRec = () => {
     rec = new SR();
-    rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
-    mic.classList.add("listening"); document.body.classList.add("listening");
-    live.textContent = "listening…";
+    rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
     rec.onresult = ev => {
       let interim = "";
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript;
+        if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript + " ";
         else interim += ev.results[i][0].transcript;
       }
-      live.textContent = (finalText + " " + interim).trim() || "listening…";
+      const shown = (finalText + interim).trim();
+      live.textContent = shown ? shown.slice(-140) : "listening… tap the square when you're done";
     };
-    rec.onerror = () => { live.textContent = ""; };
-    rec.onend = async () => {
-      mic.classList.remove("listening"); document.body.classList.remove("listening");
-      const said = finalText.trim();
-      rec = null; live.textContent = "";
-      if (!said) { toast("Didn't catch that — tap and talk, or use +"); return; }
-      const parsed = parseCapture(said);
-      if (!parsed.length) { toast("Didn't catch that — try again"); return; }
-      try {
-        await createParsed(parsed);
-        toast(parsed.length > 1 ? `${parsed.length} islands rise from the sea` : "An island rises from the sea");
-        boatLen = null; render(true);
-      } catch { toast("Couldn't add — try again"); }
+    rec.onerror = () => {};
+    rec.onend = () => {
+      // Safari gives up on pauses — resume silently until HE taps the square
+      if (!wantStop && restarts < 40 && document.body.classList.contains("listening")) {
+        restarts++;
+        try { startRec(); return; } catch {}
+      }
+      finalize();
     };
-    try { rec.start(); } catch { mic.classList.remove("listening"); document.body.classList.remove("listening"); rec = null; }
+    rec.start();
+  };
+  mic.addEventListener("click", () => {
+    if (rec || document.body.classList.contains("listening")) { wantStop = true; try { rec && rec.stop(); } catch { finalize(); } return; }
+    finalText = ""; wantStop = false; restarts = 0;
+    mic.classList.add("listening"); document.body.classList.add("listening");
+    live.textContent = "listening… tap the square when you're done";
+    try { startRec(); } catch { finalize(); }
   });
 })();
 
