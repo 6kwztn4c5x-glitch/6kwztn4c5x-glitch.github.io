@@ -1429,19 +1429,33 @@ function wireChartDrag() {
 
 /* ═══════ one tap, talk — Apple on-device speech straight onto the water ═══════ */
 async function createParsed(parsed) {
+  const futures = [];
   for (const p of parsed) {
+    const timeStr = p.timed ? ` ${p.timed.hh}:${String(p.timed.mm).padStart(2, "0")}` : "";
+    const due = p.datePhrase ? p.datePhrase + timeStr : "today" + timeStr;
     if (DEMO) {
+      if (p.datePhrase) { futures.push({ name: p.text, due: p.datePhrase }); continue; }
       const d = p.timed ? new Date() : null;
       if (d) d.setHours(p.timed.hh, p.timed.mm, 0, 0);
       tasks.push({ id: "d" + Math.random(), name: p.text, sub: "", done: false,
         labels: p.reach ? [p.reach] : [], reachLabel: p.reach, timed: d, durMin: p.durMin });
     } else {
-      const body = { content: p.text + (p.durMin ? ` ~${p.durMin}m` : ""), labels: p.reach ? [p.reach] : [] };
-      body.due_string = p.timed ? `today ${p.timed.hh}:${String(p.timed.mm).padStart(2, "0")}` : "today";
+      const body = { content: p.text + (p.durMin ? ` ~${p.durMin}m` : ""), labels: p.reach ? [p.reach] : [], due_string: due };
       const created = await api("POST", "tasks", body);
-      tasks.push(mapTask(created));
+      const onToday = created.due && created.due.date && String(created.due.date).slice(0, 10) === todayISO();
+      if (onToday) tasks.push(mapTask(created));
+      else futures.push({ name: p.text, due: created.due ? String(created.due.date).slice(0, 10) : due });
     }
   }
+  return futures;
+}
+function captureToast(parsed, futures) {
+  const todayN = parsed.length - futures.length;
+  if (!futures.length)
+    return toast(parsed.length > 1 ? parsed.length + " islands rise from the sea" : "An island rises from the sea");
+  if (todayN)
+    return toast(todayN + " on today's water · " + futures.length + " anchored ahead (" + futures[0].due + ")");
+  toast("Anchored ahead — " + futures[0].due + " · beyond today's water");
 }
 (function wireMic() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1456,8 +1470,7 @@ async function createParsed(parsed) {
     const parsed = parseCapture(said);
     if (!parsed.length) { toast("Didn't catch that — try again"); return; }
     try {
-      await createParsed(parsed);
-      toast(parsed.length > 1 ? parsed.length + " islands rise from the sea" : "An island rises from the sea");
+      captureToast(parsed, await createParsed(parsed));
       boatLen = null; render(true);
     } catch { toast("Couldn't add — try again"); }
   };
@@ -1499,14 +1512,22 @@ function parseCapture(raw) {
   const parts = raw.split(/(?:,\s+and\s+|;\s*|\.\s+(?=[A-Z])|\s+and\s+(?:also\s+)?(?=\w+\s))/i)
     .map(s => s.trim()).filter(s => s.length > 2);
   return (parts.length ? parts : [raw]).map(part => {
-    let text = part, timed = null, durMin = null, reach = null;
-    const tm = text.match(/\b(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
+    let text = part, timed = null, durMin = null, reach = null, datePhrase = null;
+    // a spoken calendar date rides straight through to Todoist's natural language
+    const MONTHS = "january|february|march|april|may|june|july|august|september|october|november|december";
+    const dm1 = text.match(new RegExp("\\b(?:on|for)?\\s*(" + MONTHS + ")\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b", "i"));
+    const dm2 = text.match(/\b(?:on|for)?\s*(tomorrow|next\s+(?:week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:this\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i);
+    const dm3 = text.match(/\b(?:on|for)\s+the\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
+    if (dm1) { datePhrase = dm1[1] + " " + dm1[2]; text = text.replace(dm1[0], " ").trim(); }
+    else if (dm2) { datePhrase = dm2[1]; text = text.replace(dm2[0], " ").trim(); }
+    else if (dm3) { datePhrase = "the " + dm3[1]; text = text.replace(dm3[0], " ").trim(); }
+    const tm = text.match(/\b(?:at|by)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\b/i);
     if (tm) {
       let hh = +tm[1]; const mm = +(tm[2] || 0);
-      if (/pm/i.test(tm[3]) && hh < 12) hh += 12;
+      if (/p/i.test(tm[3] || "") && hh < 12) hh += 12;
       else if (!tm[3] && hh <= 7) hh += 12;          // "at 4" during the day usually means 4pm
       timed = { hh, mm };
-      text = text.replace(tm[0], "").trim();
+      text = text.replace(tm[0], " ").trim();
     }
     const dm = text.match(/\b(?:for\s+)?(?:about\s+)?(?:(\d{1,3})\s*(?:min|minutes|m\b)|half\s+(?:an\s+)?hour|(\d{1,2})\s*hours?)\b/i);
     if (dm) {
@@ -1514,13 +1535,15 @@ function parseCapture(raw) {
       text = text.replace(dm[0], "").trim();
     }
     const rm = text.match(/\b(?:this\s+|in\s+the\s+)?(morning|midday|afternoon|evening|tonight)\b/i);
-    if (rm) {
+    if (rm && !datePhrase) {
       reach = rm[1].toLowerCase() === "tonight" ? "evening" : rm[1].toLowerCase();
       text = text.replace(rm[0], "").trim();
     }
-    text = text.replace(/^(?:i\s+(?:need|have|want)\s+to|gotta|remember\s+to|don't\s+forget\s+to)\s+/i, "")
+    text = text
+      .replace(/^(?:set|add|create|make)\s+a?\s*(?:task|reminder|to.?do)?\s*(?:for me)?\s*(?:to\s+)?/i, "")
+      .replace(/^(?:i\s+(?:need|have|want)\s+to|gotta|remember\s+to|don't\s+forget\s+to|remind\s+me\s+to)\s+/i, "")
       .replace(/\s{2,}/g, " ").replace(/^[,.\s]+|[,.\s]+$/g, "");
-    return { text: text.charAt(0).toUpperCase() + text.slice(1), timed, durMin, reach };
+    return { text: text.charAt(0).toUpperCase() + text.slice(1), timed, durMin, reach, datePhrase };
   }).filter(p => p.text.length > 1);
 }
 document.getElementById("addfab").addEventListener("click", () => {
@@ -1537,20 +1560,7 @@ document.getElementById("addfab").addEventListener("click", () => {
     closeSheet();
     const parsed = parseCapture(raw);
     try {
-      for (const p of parsed) {
-        if (DEMO) {
-          const d = p.timed ? new Date() : null;
-          if (d) d.setHours(p.timed.hh, p.timed.mm, 0, 0);
-          tasks.push({ id: "d" + Math.random(), name: p.text, sub: "", done: false,
-            labels: p.reach ? [p.reach] : [], reachLabel: p.reach, timed: d, durMin: p.durMin });
-        } else {
-          const body = { content: p.text + (p.durMin ? ` ~${p.durMin}m` : ""), labels: p.reach ? [p.reach] : [] };
-          body.due_string = p.timed ? `today ${p.timed.hh}:${String(p.timed.mm).padStart(2, "0")}` : "today";
-          const created = await api("POST", "tasks", body);
-          tasks.push(mapTask(created));
-        }
-      }
-      toast(parsed.length > 1 ? `${parsed.length} islands rise from the sea` : "An island rises from the sea");
+      captureToast(parsed, await createParsed(parsed));
       boatLen = null; render(true);
     } catch { toast("Couldn't add — try again"); }
   });
