@@ -308,6 +308,17 @@
   .addfab { position: fixed; right: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 45;
     width: 54px; height: 54px; border-radius: 50%; border: 0; background: #e8a33d; color: #241804;
     font-size: 30px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 26px rgba(232,163,61,.4); }
+  #micfab { position: fixed; left: 50%; margin-left: -27px; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 45;
+    width: 54px; height: 54px; border-radius: 50%; border: 1px solid rgba(232,163,61,.55);
+    background: rgba(20,26,51,.92); cursor: pointer; box-shadow: 0 8px 26px rgba(0,0,0,.45); backdrop-filter: blur(8px); }
+  #micfab svg { width: 24px; height: 24px; display: block; margin: 0 auto; }
+  #micfab.listening { background: rgba(232,163,61,.92); animation: micpulse 1.6s ease-in-out infinite; }
+  #micfab.listening svg path, #micfab.listening svg rect { stroke: #241804; }
+  @keyframes micpulse { 50% { box-shadow: 0 0 0 14px rgba(232,163,61,.12); } }
+  #livewords { position: fixed; left: 20px; right: 20px; bottom: calc(92px + env(safe-area-inset-bottom));
+    z-index: 46; text-align: center; font-size: 16px; font-weight: 600; color: #f2ecdd; display: none;
+    text-shadow: 0 2px 12px rgba(6,9,20,.9); pointer-events: none; }
+  body.listening #livewords { display: block; }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom));
     background: #1c2340; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 10px 18px;
     font-size: 14.5px; z-index: 50; box-shadow: 0 6px 24px rgba(0,0,0,.45); max-width: 86vw; text-align: center; }
@@ -331,6 +342,13 @@
 
 <button id="chartbtn" title="Captain's Chart">C</button>
 <div id="chart"></div>
+<button id="micfab" title="talk a task onto the water">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#e8a33d" stroke-width="1.8" stroke-linecap="round">
+    <rect x="9" y="3" width="6" height="11" rx="3"/>
+    <path d="M5 11 a7 7 0 0 0 14 0"/><path d="M12 18v3"/>
+  </svg>
+</button>
+<div id="livewords"></div>
 <button class="addfab" id="addfab">+</button>
 <div class="sheet-veil" id="veil"></div>
 <div class="sheet" id="sheet"></div>
@@ -1404,6 +1422,61 @@ function wireChartDrag() {
     });
   });
 }
+
+/* ═══════ one tap, talk — Apple on-device speech straight onto the water ═══════ */
+async function createParsed(parsed) {
+  for (const p of parsed) {
+    if (DEMO) {
+      const d = p.timed ? new Date() : null;
+      if (d) d.setHours(p.timed.hh, p.timed.mm, 0, 0);
+      tasks.push({ id: "d" + Math.random(), name: p.text, sub: "", done: false,
+        labels: p.reach ? [p.reach] : [], reachLabel: p.reach, timed: d, durMin: p.durMin });
+    } else {
+      const body = { content: p.text + (p.durMin ? ` ~${p.durMin}m` : ""), labels: p.reach ? [p.reach] : [] };
+      body.due_string = p.timed ? `today ${p.timed.hh}:${String(p.timed.mm).padStart(2, "0")}` : "today";
+      const created = await api("POST", "tasks", body);
+      tasks.push(mapTask(created));
+    }
+  }
+}
+(function wireMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = document.getElementById("micfab"), live = document.getElementById("livewords");
+  if (!SR) { mic.addEventListener("click", () => document.getElementById("addfab").click()); return; }
+  let rec = null, finalText = "";
+  const stop = () => { if (rec) try { rec.stop(); } catch {} };
+  mic.addEventListener("click", () => {
+    if (rec) { stop(); return; }
+    finalText = "";
+    rec = new SR();
+    rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false;
+    mic.classList.add("listening"); document.body.classList.add("listening");
+    live.textContent = "listening…";
+    rec.onresult = ev => {
+      let interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript;
+        else interim += ev.results[i][0].transcript;
+      }
+      live.textContent = (finalText + " " + interim).trim() || "listening…";
+    };
+    rec.onerror = () => { live.textContent = ""; };
+    rec.onend = async () => {
+      mic.classList.remove("listening"); document.body.classList.remove("listening");
+      const said = finalText.trim();
+      rec = null; live.textContent = "";
+      if (!said) { toast("Didn't catch that — tap and talk, or use +"); return; }
+      const parsed = parseCapture(said);
+      if (!parsed.length) { toast("Didn't catch that — try again"); return; }
+      try {
+        await createParsed(parsed);
+        toast(parsed.length > 1 ? `${parsed.length} islands rise from the sea` : "An island rises from the sea");
+        boatLen = null; render(true);
+      } catch { toast("Couldn't add — try again"); }
+    };
+    try { rec.start(); } catch { mic.classList.remove("listening"); document.body.classList.remove("listening"); rec = null; }
+  });
+})();
 
 /* ═══════ capture: talk (iOS dictation) or type — the parser reads times, spans, waters, and splits ═══════ */
 function parseCapture(raw) {
