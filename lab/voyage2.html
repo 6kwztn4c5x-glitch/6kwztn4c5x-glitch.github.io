@@ -335,7 +335,7 @@
 /* ═══════════════ params ═══════════════ */
 const Q = new URLSearchParams(location.search);
 const unit = parseInt(Q.get("unit")) || Math.max(560, Math.min(window.innerHeight, 900));
-const FAKE_HOUR = Q.get("at") !== null ? parseFloat(Q.get("at")) : null;
+let FAKE_HOUR = Q.get("at") !== null ? parseFloat(Q.get("at")) : null;
 let dialOverride = Q.get("dial") !== null ? parseInt(Q.get("dial")) : null;
 function nowH() { const d = new Date(); return FAKE_HOUR ?? (d.getHours() + d.getMinutes() / 60); }
 
@@ -424,6 +424,8 @@ function paintSky() {
 const API = "https://api.todoist.com/api/v1";
 const token = () => localStorage.getItem("todoist_token") || "";
 let DEMO = Q.get("demo") === "1" || !token();
+/* the demo is a diorama of a good morning — it docks at 9:30am no matter when you open it */
+if (DEMO && FAKE_HOUR === null) FAKE_HOUR = 9.5;
 let tasks = [];
 
 function demoDay() {
@@ -987,7 +989,9 @@ function updateCreatures() {
   const spots = creatureSpots();
   if (!spots.length) return;
   const boatP = wakeEl && boatLen !== null ? wakeEl.getPointAtLength(Math.min(boatLen, RL - 1)) : { x: L.w / 2, y: L.points[0].y };
-  const near = (k) => ({ x: boatP.x + (boatP.x < L.w / 2 ? 1 : -1) * L.w * k, y: boatP.y + L.isleH * k * 1.6 });
+  const near = (k) => ({
+    x: Math.max(L.w * .14, Math.min(L.w * .86, boatP.x + (boatP.x < L.w / 2 ? 1 : -1) * L.w * k)),
+    y: boatP.y + L.isleH * k * 1.6 });
   const mk = (id, src, w, x, y, extra) => {
     const el = document.createElement("div");
     el.className = "creature" + (weatherChanged() || stage === 0 && id !== "cr-serpent" && id !== "cr-sirens" ? "" : "");
