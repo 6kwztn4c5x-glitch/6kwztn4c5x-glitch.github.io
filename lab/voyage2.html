@@ -12,6 +12,10 @@
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; }
   html { background: #0a0e22; }
+  /* iOS: no save-image callouts, no text-selection fights — this is a world, not a webpage */
+  body { -webkit-user-select: none; user-select: none; }
+  img { -webkit-touch-callout: none; -webkit-user-drag: none; user-select: none; }
+  input, textarea { -webkit-user-select: text; user-select: text; }
   body { color: #ece9e2; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
     overflow-x: hidden; }
 
