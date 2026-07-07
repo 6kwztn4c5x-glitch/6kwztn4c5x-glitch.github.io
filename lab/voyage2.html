@@ -102,9 +102,9 @@
   .gear { position: fixed; top: calc(58px + env(safe-area-inset-top)); right: 10px; z-index: 43;
     width: 46px; height: 46px; border-radius: 50%; background: rgba(20,26,51,.55); border: 1px solid rgba(255,255,255,.1);
     color: #9aa0bd; font-size: 20px; cursor: pointer; }
-  .chip { position: fixed; top: calc(54px + env(safe-area-inset-top)); left: 20px; z-index: 40;
-    background: rgba(232,163,61,.12); border: 1px solid rgba(232,163,61,.4); color: #f5c469;
-    font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 11px; }
+  .chip { position: fixed; top: calc(50px + env(safe-area-inset-top)); left: 20px; z-index: 40;
+    background: none; border: 0; color: var(--labelc, #8f95b8); opacity: .75;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 2px 0; }
 
   /* ═══════════ the brass type system — no emoji ═══════════ */
   .brassrule { display: block; width: 46px; height: 1px; margin: 6px auto 0;
@@ -170,8 +170,9 @@
     color: #8f95b8; margin-bottom: 5px; }
   .titlecard.focus .kicker { color: #f5c469; }
   .titlecard .name { font-size: 25px; font-weight: 800; line-height: 1.16; letter-spacing: -.4px;
-    text-wrap: balance; text-shadow: 0 2px 18px rgba(6,9,20,.85); pointer-events: auto; cursor: pointer; }
-  .titlecard .sub { color: #9aa0bd; font-size: 13px; margin-top: 5px; }
+    text-wrap: balance; color: var(--namec, #ece9e2); text-shadow: 0 2px 18px var(--labelsh, rgba(6,9,20,.85));
+    pointer-events: auto; cursor: pointer; }
+  .titlecard .sub { color: var(--subc, #9aa0bd); font-size: 13px; margin-top: 5px; }
   .titlecard .sub.late { color: #d98a94; }
   .titlecard .sub.drift { color: #7adcff; opacity: .75; font-style: italic; }
   .island.done .titlecard .name { text-decoration: line-through; color: #7d829e; }
@@ -320,6 +321,10 @@
     z-index: 46; text-align: center; font-size: 16px; font-weight: 600; color: #f2ecdd; display: none;
     text-shadow: 0 2px 12px rgba(6,9,20,.9); pointer-events: none; }
   body.listening #livewords { display: block; }
+  /* on a weather day the whole system stands down — including the buttons that invite work */
+  body.weatherday .addfab { background: rgba(232,163,61,.22); color: rgba(36,24,4,.55); box-shadow: none; }
+  body.weatherday #micfab { opacity: .45; }
+  body.weatherday #chartbtn { opacity: .55; }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom));
     background: #1c2340; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 10px 18px;
     font-size: 14.5px; z-index: 50; box-shadow: 0 6px 24px rgba(0,0,0,.45); max-width: 86vw; text-align: center; }
@@ -420,6 +425,8 @@ function paintSky() {
   w.style.setProperty("--labelc", `rgb(${lerp3([86,91,125],[26,32,66],s.sun).join(",")})`);
   w.style.setProperty("--labelcur", `rgb(${lerp3([151,160,204],[20,26,58],s.sun).join(",")})`);
   w.style.setProperty("--labelsh", s.sun > .4 ? "rgba(214,228,255,.45)" : "rgba(6,9,20,.9)");
+  w.style.setProperty("--namec", `rgb(${lerp3([236,233,226],[18,24,54],s.sun).join(",")})`);
+  w.style.setProperty("--subc", `rgb(${lerp3([154,160,189],[52,60,100],s.sun).join(",")})`);
   const sm = document.getElementById("sunmoon");
   if (s.sun > .02) {
     // sun arcs left→right, 6am→10pm
